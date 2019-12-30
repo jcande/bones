@@ -1,0 +1,7 @@
+[package]
+name = "bones"
+version = "0.1.0"
+authors = ["jsc <candelaria.jared@gmail.com>"]
+edition = "2018"
+
+[dependencies]
