@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::collections::HashSet;
 use std::ops::Index;
 use std::ops::Neg;
 
@@ -103,30 +102,6 @@ impl TileSet {
         self.lookup.get(tile)
     }
 
-    // XXX make a type for the return value
-    // The orientation is relative to the provided tile. E.g., if we say West, then we look at
-    // the westernmost pip of the tile and find all eastern pips that match
-    pub fn matches_ref(&self,
-               tile_ref: &TileRef,
-               direction: Orientation)
-        -> Vec<TileRef> {
-        let tile = self.set[*tile_ref as usize];
-        self.matches_tile(&tile, direction)
-    }
-
-    pub fn matches_tile(&self,
-                        tile: &Tile,
-                        direction: Orientation)
-        -> Vec<TileRef> {
-        let (current, next) = (direction, -direction);
-
-        let pip = tile.cardinal(&current);
-        self.lookup.iter()
-            .filter(|(tile, _)| pip == tile.cardinal(&next))
-            .map(|(_, r)| *r)
-            .collect()
-    }
-
     // The orientation is relative to the pip. In other words, orientation refers to where the
     // pip is located within a tile.
     pub fn matches_pip(&self,
@@ -139,6 +114,24 @@ impl TileSet {
             .filter(|(tile, _)| *pip == tile.cardinal(&next))
             .map(|(_, r)| *r)
             .collect()
+    }
+
+    pub fn matches_tile(&self,
+                        tile: &Tile,
+                        direction: Orientation)
+        -> Vec<TileRef> {
+        let pip = tile.cardinal(&direction);
+        self.matches_pip(&pip, direction)
+    }
+
+    // The orientation is relative to the provided tile. E.g., if we say West, then we look at
+    // the westernmost pip of the tile and find all eastern pips that match
+    pub fn matches_ref(&self,
+               tile_ref: &TileRef,
+               direction: Orientation)
+        -> Vec<TileRef> {
+        let tile = self.set[*tile_ref as usize];
+        self.matches_tile(&tile, direction)
     }
 }
 

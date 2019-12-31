@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::collections::HashSet;
 
 use crate::tiling::Pip;
@@ -59,8 +58,6 @@ impl<'a> Row<'a> {
 
     pub fn to_vec(mut self) -> Option<Vec<TileRef>> {
         for i in 0..self.row.len() {
-            println!("everything referring to cloud {}", i);
-
             if i > 0 {
                 // westward
                 /*
@@ -112,8 +109,6 @@ println!("to_vec: {}, eastward! {:?}", i, succ);
             .collect();
         */
 
-        println!("next: {:?}", next);
-
         Some(next)
     }
 }
@@ -125,15 +120,11 @@ pub enum TileCloudConf {
 }
 
 #[derive(Debug)]
-// XXX this probably needs a reference to TileSet otherwise a caller could confuse them and then
-// we would crash
 pub struct TileCloud<'a> {
     tiles: &'a TileSet,
     cloud: HashSet<TileRef>,
     conf: TileCloudConf,
 }
-
-// XXX think of operations
 
 impl<'a> TileCloud<'a> {
     pub fn new(tiles: &'a TileSet, initial: Vec<TileRef>, conf: TileCloudConf) -> Self {
@@ -157,12 +148,11 @@ impl<'a> TileCloud<'a> {
                      other: &TileCloud,
                      orientation: &Orientation
                      ) -> bool {
+        assert!(*orientation != Orientation::North && *orientation != Orientation::South,
+            "north/south constraints don't make sense in this context");
+
         // XXX maybe with_capacity(self.cloud.len())? We'll use more space but probably faster
         let mut keep = HashSet::new();
-        if *orientation == Orientation::North ||
-            *orientation == Orientation::South {
-            panic!("north/south constraints don't make sense in this context");
-        }
         let (current, next) = (orientation, -*orientation);
 
         let available_pips = other.positional_pips(&next);
@@ -172,28 +162,30 @@ impl<'a> TileCloud<'a> {
                 keep.insert(*r);
             }
         }
-        println!("was: {:?}", self.cloud);
         self.cloud = keep;
-        println!("keeping: {:?}", self.cloud);
 
-        self.cloud.len() > 0
+        !self.cloud.is_empty()
     }
 
     pub fn select(&self) -> TileRef {
+        // The thinking behind these preferences is that we can use the border tile as a
+        // tie-breaker. If the cloud is along the border then we prefer to keep a border as we
+        // can discard it later. If the tile is interior then we would rather not keep the
+        // border as that is not likely the tile we want (assuming a lot here). In the end,
+        // however, we take what we can get.
         for r in self.cloud.iter() {
             match self.conf {
                 TileCloudConf::Prefer(tile_ref) => if tile_ref == *r {
-                    println!("preference obtained");
                     return *r;
                 },
                 TileCloudConf::Avoid(tile_ref) => if tile_ref != *r {
-                    println!("avoidance obtained");
                     return *r;
                 },
             }
         }
 
-        println!("gotta take what we can get");
-        *self.cloud.iter().next().expect("TileCloud needs to have valid tiles before it can select one")
+        *self.cloud.iter()
+            .next()
+            .expect("TileCloud needs to have valid tiles before it can select one")
     }
 }

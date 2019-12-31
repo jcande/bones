@@ -1,11 +1,7 @@
-use std::collections::HashMap;
 use std::collections::HashSet;
 
 mod tiling;
-use crate::tiling::Pip;
 use crate::tiling::Tile;
-use crate::tiling::Orientation;
-use crate::tiling::Direction;
 
 use crate::tiling::TileSet;
 use crate::tiling::TileRef;
@@ -43,7 +39,7 @@ impl Mosaic {
         let tiles = TileSet::new(set.into_iter().collect());
 
         let state = initial.into_iter()
-            .map(|tile| *tiles.get(&tile).unwrap())
+            .map(|tile| *tiles.get(&tile).expect("we should have already verified this"))
             .collect();
         println!("tile set: {:?}", tiles);
 
@@ -62,11 +58,7 @@ impl Mosaic {
 
         if let Some(row) = row.to_vec() {
             self.state = row;
-
-            println!("state:");
-            for (i, tile) in self.state.iter().enumerate() {
-                println!("{}: {:?}", i, self.set[*tile]);
-            }
+            println!("state: {:?}", self.state);
 
             true
         } else {
