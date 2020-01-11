@@ -81,9 +81,10 @@ fn main() -> Result<(), ()> {
     let init: BoardState = vec![Tile::new(0, 0, 10, 0)];
     let mut board = Mosaic::new(set, border, init)?;
 
-    board.step();
-    board.step();
-    board.step();
+    for i in 0..3 {
+        println!("{}", i+1);
+        board.step();
+    }
 
     Ok(())
 }
@@ -91,12 +92,14 @@ fn main() -> Result<(), ()> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+//    use super::*;
 
     #[test]
     fn construct() {
+        /*
         let set: TileSet = vec![Tile::new(0, 0, 0, 0), Tile::new(0, 0, 1, 0)].into_iter().collect();
         let init: BoardState = vec![Tile::new(0, 0, 0, 0)];
+        */
 
         //assert_eq!(Ok(Board { tiles: set, state: init }), Mosaic::new(set, init));
     }

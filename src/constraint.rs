@@ -8,12 +8,95 @@ use crate::tiling::Direction;
 use crate::tiling::TileSet;
 use crate::tiling::TileRef;
 
+
 #[derive(Debug)]
+pub enum TileCloudConf {
+    Prefer(TileRef),
+    Avoid(TileRef),
+    Whatever,
+}
+
+#[derive(Debug)]
+pub struct TileCloud<'a> {
+    tiles: &'a TileSet,
+    cloud: HashSet<TileRef>,
+    conf: TileCloudConf,
+}
+
+impl<'a> TileCloud<'a> {
+    pub fn new(tiles: &'a TileSet, initial: Vec<TileRef>, conf: TileCloudConf) -> Self {
+        // XXX may want to pre-calculate each pip as that is used a lot
+        Self {
+            tiles: tiles,
+            cloud: initial.into_iter().collect(),
+            conf: conf,
+        }
+    }
+
+    pub fn positional_pips(&self, direction: &Direction) -> HashSet<Pip> {
+        self.cloud.iter()
+            .cloned()
+            .map(|ref r| self.tiles[*r].cardinal(direction))
+            .collect()
+    }
+
+    // Orientation is where the other tilecloud is in relation to self
+    pub fn constrain(&mut self,
+                     other: &TileCloud,
+                     orientation: &Orientation
+                     ) -> bool {
+        assert!(*orientation != Orientation::North && *orientation != Orientation::South,
+            "north/south constraints don't make sense in this context");
+
+        // XXX maybe with_capacity(self.cloud.len())? We'll use more space but probably faster
+        let mut keep = HashSet::new();
+        let (current, next) = (orientation, -*orientation);
+
+        let available_pips = other.positional_pips(&next);
+        for r in self.cloud.iter() {
+            let pip = self.tiles[*r].cardinal(&current);
+            if available_pips.contains(&pip) {
+                keep.insert(*r);
+            }
+        }
+        self.cloud = keep;
+
+        !self.cloud.is_empty()
+    }
+
+    pub fn select(&self) -> TileRef {
+        // The thinking behind these preferences is that we can use the border tile as a
+        // tie-breaker. If the cloud is along the border then we prefer to keep a border as we
+        // can discard it later. If the tile is interior then we would rather not keep the
+        // border as that is not likely the tile we want (assuming a lot here). In the end,
+        // however, we take what we can get.
+        for r in self.cloud.iter() {
+            match self.conf {
+                TileCloudConf::Prefer(tile_ref) => if tile_ref == *r {
+                    return *r;
+                },
+                TileCloudConf::Avoid(tile_ref) => if tile_ref != *r {
+                    return *r;
+                },
+                TileCloudConf::Whatever => (),
+            }
+        }
+
+        *self.cloud.iter()
+            .next()
+            .expect("TileCloud needs to have valid tiles before it can select one")
+    }
+}
+
+
+#[derive(Debug)]
+// XXX This only handles the very narrow case where a SINGLE tile changes between rows. To clarify,
+// if we have a single head that moves one square left or right, this case is covered. An
+// optimization where we can move the head n-squares is NOT. I still need to think more about how
+// to achieve this but for now it will not work.
+// Maybe use a list instead of a vector while we're handling TileClouds? Gotta think about how to
+// represent that "infinite" stuff though.
 pub struct Row<'a> {
-    // XXX We need the western and eastern fronts that are permanent
-    // the first and last slots are potentially something other than these permanent tiles but
-    // in the general case will not be. There is some chance that the head could ran into them
-    // and then we need to insert a blank tile to handle it.
     set: &'a TileSet,
     row: Vec<TileCloud<'a>>,
     border: TileRef,
@@ -90,102 +173,73 @@ println!("to_vec: {}, eastward! {:?}", i, succ);
             }
         }
 
-        let mut next: Vec<TileRef> = self.row.iter().map(|cloud| cloud.select()).collect();
-        if next[0] == self.border {
-            next.remove(0);
-        }
-        if next[next.len() - 1] == self.border {
-            next.pop();
-        }
-
-        /*
         let next = self.row.iter().enumerate()
             .map(|(i, cloud)| (i, cloud.select()))
             // Remove the border pieces if they are the expected border pieces. This is to
             // prevent us adding 2 tiles per step.
-            .filter(|(i, tile)| (*i == 0 || *i == (self.row.len() - 1)) &&
-                    *tile != self.border)
+            .filter(|(i, tile)| {
+                let in_border_position = *i == 0 || *i == (self.row.len() - 1);
+                let is_border = *tile == self.border;
+                let remove = !(in_border_position && is_border);
+                remove
+            })
             .map(|(_, tile)| tile)
             .collect();
-        */
 
         Some(next)
     }
 }
 
-#[derive(Debug)]
-pub enum TileCloudConf {
-    Prefer(TileRef),
-    Avoid(TileRef),
-}
+#[cfg(test)]
+mod constraint_tests {
+    use super::*;
 
-#[derive(Debug)]
-pub struct TileCloud<'a> {
-    tiles: &'a TileSet,
-    cloud: HashSet<TileRef>,
-    conf: TileCloudConf,
-}
+    fn default_mosaic() -> (TileRef, Vec<TileRef>, TileSet) {
+        let border = Tile::new(0, 0, 0, 0);
+        let starter_tile = Tile::new(0, 0, 10, 0);
+        // This program basically turns 0s into 1s and shifts right.
+        let set = vec![
+            border,
+            starter_tile,
+            Tile::new(10, 7, 1, 0),
+            Tile::new(1, 0, 1, 0),
+            Tile::new(0, 0, 10, 7),
+        ];
 
-impl<'a> TileCloud<'a> {
-    pub fn new(tiles: &'a TileSet, initial: Vec<TileRef>, conf: TileCloudConf) -> Self {
-        // XXX may want to pre-calculate each pip as that is used a lot
-        Self {
-            tiles: tiles,
-            cloud: initial.into_iter().collect(),
-            conf: conf,
-        }
+        let set = TileSet::new(set);
+
+        let init = vec![starter_tile];
+        let init = init.iter()
+            .map(|tile| *set.get(tile).expect("tile should be present"))
+            .collect();
+
+        let border = *set.get(&border).expect("tile should be present");
+        (border, init, set)
     }
 
-    pub fn positional_pips(&self, direction: &Direction) -> HashSet<Pip> {
-        self.cloud.iter()
-            .cloned()
-            .map(|ref r| self.tiles[*r].cardinal(direction))
-            .collect()
-    }
+    fn pips_by_position() {
+        let init = Tile::new(0, 1, 2, 3);
+        let tiles = vec![
+            init,
+            Tile::new(1, 4, 5, 6),
+        ];
+        let set = TileSet::new(tiles.clone());
+        let initial = vec![init].iter()
+            .map(|tile| *set.get(tile).expect("should be present"))
+            .collect();
+        //let (_, init, set) = default_mosaic();
 
-    // Orientation is where the other tilecloud is in relation to self
-    pub fn constrain(&mut self,
-                     other: &TileCloud,
-                     orientation: &Orientation
-                     ) -> bool {
-        assert!(*orientation != Orientation::North && *orientation != Orientation::South,
-            "north/south constraints don't make sense in this context");
+        let cloud = TileCloud::new(&set, initial, TileCloudConf::Whatever);
 
-        // XXX maybe with_capacity(self.cloud.len())? We'll use more space but probably faster
-        let mut keep = HashSet::new();
-        let (current, next) = (orientation, -*orientation);
-
-        let available_pips = other.positional_pips(&next);
-        for r in self.cloud.iter() {
-            let pip = self.tiles[*r].cardinal(&current);
-            if available_pips.contains(&pip) {
-                keep.insert(*r);
+        for direction in [Direction::North,
+                Direction::East,
+                Direction::South,
+                Direction::West]
+                .iter() {
+            let found = cloud.positional_pips(&direction);
+            for tile in tiles.iter() {
+                assert!(found.contains(&tile.cardinal(&direction)));
             }
         }
-        self.cloud = keep;
-
-        !self.cloud.is_empty()
-    }
-
-    pub fn select(&self) -> TileRef {
-        // The thinking behind these preferences is that we can use the border tile as a
-        // tie-breaker. If the cloud is along the border then we prefer to keep a border as we
-        // can discard it later. If the tile is interior then we would rather not keep the
-        // border as that is not likely the tile we want (assuming a lot here). In the end,
-        // however, we take what we can get.
-        for r in self.cloud.iter() {
-            match self.conf {
-                TileCloudConf::Prefer(tile_ref) => if tile_ref == *r {
-                    return *r;
-                },
-                TileCloudConf::Avoid(tile_ref) => if tile_ref != *r {
-                    return *r;
-                },
-            }
-        }
-
-        *self.cloud.iter()
-            .next()
-            .expect("TileCloud needs to have valid tiles before it can select one")
     }
 }

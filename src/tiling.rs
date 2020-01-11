@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::ops::Index;
 use std::ops::Neg;
 
-// or Bone!
 pub type Pip = usize;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
@@ -27,21 +26,6 @@ impl Neg for Direction {
     }
 }
 
-// A constraint satisfaction problem (CSP) has these 3 components:
-// 1) set of variables
-// 2) Domain for each variable (i.e., set of values each variable can have)
-// 3) set of constraints/relations between each variable
-// In our case, each variable is a tile, the domain is the tileset, and the constraints are
-// relations between each side of the tile
-// Luckily this is pretty nice and let's us solve a "row" at a time. The previous row caps the
-// tiles for the current row (so our domain is nicely contained that way). Then we just need to
-// continually apply the constraints of each side (E and W) until we reach a fixpoint. If there is
-// more than 1 possible tile for a slot then we'll just yolo-choose one as any should work by
-// that point.
-
-// (looks like this is called Constraint Propogation)
-// We want arc-consistency (I think path-consistency might be overkill)
-// We want local-search
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Tile {
     north: Pip,
@@ -94,9 +78,11 @@ impl TileSet {
         }
     }
 
+    /*
     pub fn iter(&self) -> impl Iterator<Item=&Tile> {
         self.set.iter()
     }
+    */
 
     pub fn get(&self, tile: &Tile) -> Option<&TileRef> {
         self.lookup.get(tile)
@@ -142,5 +128,82 @@ impl Index<TileRef> for TileSet {
     #[inline]
     fn index(&self, index: TileRef) -> &Self::Output {
         self.set.get(index as usize).expect("Out of bounds access")
+    }
+}
+
+#[cfg(test)]
+mod tile_tests {
+    use super::*;
+
+    #[test]
+    fn make_tile() {
+        let (north, east, south, west) = (0, 1, 2, 3);
+        let tile = Tile::new(north, east, south, west);
+
+        assert!(tile.cardinal(&Direction::North) == north);
+        assert!(tile.cardinal(&Direction::East)  == east);
+        assert!(tile.cardinal(&Direction::South) == south);
+        assert!(tile.cardinal(&Direction::West)  == west);
+    }
+
+    #[test]
+    fn direction_negation() {
+        let (n, e, s, w) = (Direction::North, Direction::East, Direction::South, Direction::West);
+        assert!(n == -s);
+        assert!(e == -w);
+        assert!(s == -n);
+        assert!(w == -e);
+    }
+
+    #[test]
+    fn tile_to_ref() {
+        let tile = Tile::new(0, 0, 0, 0);
+        let set = TileSet::new(vec![tile]);
+
+        let tile_ref = set.get(&tile).expect("tile should be present");
+        assert!(tile == set[*tile_ref]);
+    }
+
+    #[test]
+    fn matches() {
+        let pip0 = 0;
+        let pip1 = 1;
+        let fancy = Tile::new(pip0, pip1, pip0, pip1);
+        let zero  = Tile::new(pip0, 100, 100, 100);
+        let tiles = vec![
+            fancy,
+            zero,
+        ];
+        let set = TileSet::new(tiles.clone());
+        let tile_refs: Vec<TileRef> = tiles.iter()
+            .map(|tile| *set.get(tile).expect("tile should be present"))
+            .collect();
+
+        // Assume pip0 is the southernmost pip. This means it will attempt to match it with
+        // northern pips.
+        let matches = set.matches_pip(&pip0, Direction::South);
+        assert!(matches.len() == 2);
+        for r in tile_refs.iter() {
+            assert!(matches.contains(r));
+        }
+
+        // Take the southernmost pip from fancy and find all the (northern) matches
+        let matches = set.matches_tile(&fancy, Direction::South);
+        assert!(matches.len() == 2);
+        for r in tile_refs.iter() {
+            assert!(matches.contains(r));
+        }
+
+        // Take the northernmost pip from fancy and find all the (southern) matches
+        let matches = set.matches_tile(&fancy, Direction::North);
+        assert!(matches.len() == 1);
+        assert!(set[matches[0]] == fancy);
+
+        // Take any reference and verify the east/west pips match up.
+        let chosen_ref = tile_refs[0];
+        let chosen_tile = set[chosen_ref];
+        let matches = set.matches_ref(&chosen_ref, Direction::West);
+        assert!(matches.len() == 1);
+        assert!(set[matches[0]] == chosen_tile);
     }
 }
