@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::fmt;
 use std::ops::Index;
 use std::ops::Neg;
 
@@ -13,6 +14,21 @@ pub enum Direction {
 }
 pub type Orientation = Direction;
 
+impl std::fmt::Display for Direction {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Direction::North => "North",
+                Direction::East => "East",
+                Direction::South => "South",
+                Direction::West => "West",
+            }
+        )
+    }
+}
+
 impl Neg for Direction {
     type Output = Direction;
 
@@ -20,8 +36,8 @@ impl Neg for Direction {
         match self {
             Direction::North => Direction::South,
             Direction::South => Direction::North,
-            Direction::East  => Direction::West,
-            Direction::West  => Direction::East,
+            Direction::East => Direction::West,
+            Direction::West => Direction::East,
         }
     }
 }
@@ -29,9 +45,19 @@ impl Neg for Direction {
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Tile {
     north: Pip,
-    east:  Pip,
+    east: Pip,
     south: Pip,
-    west:  Pip,
+    west: Pip,
+}
+
+impl std::fmt::Display for Tile {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "(n: {}, e: {}, s: {}, w: {})",
+            self.north, self.east, self.south, self.west
+        )
+    }
 }
 
 impl Tile {
@@ -48,20 +74,19 @@ impl Tile {
     pub fn cardinal(&self, direction: &Direction) -> Pip {
         match direction {
             Direction::North => self.north,
-            Direction::East  => self.east,
+            Direction::East => self.east,
             Direction::South => self.south,
-            Direction::West  => self.west,
+            Direction::West => self.west,
         }
     }
 }
-
 
 // If we have more than 4 billion then we'll have to bump it
 pub type TileRef = u32;
 
 #[derive(Debug)]
 pub struct TileSet {
-    set:    Vec<Tile>,
+    set: Vec<Tile>,
     lookup: HashMap<Tile, TileRef>,
 }
 
@@ -72,17 +97,8 @@ impl TileSet {
             lookup.insert(*tile, i as TileRef);
         }
 
-        TileSet {
-            set,
-            lookup,
-        }
+        TileSet { set, lookup }
     }
-
-    /*
-    pub fn iter(&self) -> impl Iterator<Item=&Tile> {
-        self.set.iter()
-    }
-    */
 
     pub fn get(&self, tile: &Tile) -> Option<&TileRef> {
         self.lookup.get(tile)
@@ -90,32 +106,24 @@ impl TileSet {
 
     // The orientation is relative to the pip. In other words, orientation refers to where the
     // pip is located within a tile.
-    pub fn matches_pip(&self,
-               pip: &Pip,
-               direction: Orientation)
-        -> Vec<TileRef> {
+    pub fn matches_pip(&self, pip: &Pip, direction: Orientation) -> Vec<TileRef> {
         let next = -direction;
 
-        self.lookup.iter()
+        self.lookup
+            .iter()
             .filter(|(tile, _)| *pip == tile.cardinal(&next))
             .map(|(_, r)| *r)
             .collect()
     }
 
-    pub fn matches_tile(&self,
-                        tile: &Tile,
-                        direction: Orientation)
-        -> Vec<TileRef> {
+    pub fn matches_tile(&self, tile: &Tile, direction: Orientation) -> Vec<TileRef> {
         let pip = tile.cardinal(&direction);
         self.matches_pip(&pip, direction)
     }
 
     // The orientation is relative to the provided tile. E.g., if we say West, then we look at
     // the westernmost pip of the tile and find all eastern pips that match
-    pub fn matches_ref(&self,
-               tile_ref: &TileRef,
-               direction: Orientation)
-        -> Vec<TileRef> {
+    pub fn matches_ref(&self, tile_ref: &TileRef, direction: Orientation) -> Vec<TileRef> {
         let tile = self.set[*tile_ref as usize];
         self.matches_tile(&tile, direction)
     }
@@ -141,14 +149,19 @@ mod tile_tests {
         let tile = Tile::new(north, east, south, west);
 
         assert!(tile.cardinal(&Direction::North) == north);
-        assert!(tile.cardinal(&Direction::East)  == east);
+        assert!(tile.cardinal(&Direction::East) == east);
         assert!(tile.cardinal(&Direction::South) == south);
-        assert!(tile.cardinal(&Direction::West)  == west);
+        assert!(tile.cardinal(&Direction::West) == west);
     }
 
     #[test]
     fn direction_negation() {
-        let (n, e, s, w) = (Direction::North, Direction::East, Direction::South, Direction::West);
+        let (n, e, s, w) = (
+            Direction::North,
+            Direction::East,
+            Direction::South,
+            Direction::West,
+        );
         assert!(n == -s);
         assert!(e == -w);
         assert!(s == -n);
@@ -169,13 +182,11 @@ mod tile_tests {
         let pip0 = 0;
         let pip1 = 1;
         let fancy = Tile::new(pip0, pip1, pip0, pip1);
-        let zero  = Tile::new(pip0, 100, 100, 100);
-        let tiles = vec![
-            fancy,
-            zero,
-        ];
+        let zero = Tile::new(pip0, 100, 100, 100);
+        let tiles = vec![fancy, zero];
         let set = TileSet::new(tiles.clone());
-        let tile_refs: Vec<TileRef> = tiles.iter()
+        let tile_refs: Vec<TileRef> = tiles
+            .iter()
             .map(|tile| *set.get(tile).expect("tile should be present"))
             .collect();
 
