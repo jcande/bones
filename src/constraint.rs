@@ -1,7 +1,9 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use thiserror::Error;
 
 use std::collections::HashSet;
+
+use std::fmt;
 
 use crate::tiling::Direction;
 use crate::tiling::Orientation;
@@ -23,6 +25,29 @@ pub struct TileCloud<'a> {
     tiles: &'a TileSet,
     cloud: HashSet<TileRef>,
     conf: TileCloudConf,
+}
+
+impl<'a> std::fmt::Display for TileCloud<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_fmt(format_args!("TileCloud("))?;
+
+        let tiles: Vec<Tile> = self
+            .cloud
+            .iter()
+            .map(|tile_ref| self.tiles[*tile_ref])
+            .collect();
+        for (i, tile) in tiles.iter().enumerate() {
+            f.write_fmt(format_args!("{}", tile))?;
+
+            if i != tiles.len() - 1 {
+                f.write_fmt(format_args!(", "))?;
+            }
+        }
+
+        f.write_fmt(format_args!(")"))?;
+
+        Ok(())
+    }
 }
 
 #[derive(Error, Debug)]
@@ -123,19 +148,14 @@ pub enum RowError {
     #[error("Invalid border tile: {tile}. The tile is not contained in the given tile set")]
     InvalidTileBorder { tile: Tile },
 
-    //#[error("Constraints imposed by {other} from {direction} proved impossible for {center}.")]
-    #[error("Constraints imposed from {direction} proved impossible for a TileCloud.")]
-    UnsatisfiableConstraints {
-        direction: Direction,
-        // TODO have a TileCloud method that returns a collection of possible Tiles that we'll
-        // use here to print out instead of the TileCloud itself as that requires lifetime stuff
-        /*
-        other: TileCloud,
-        center: TileCloud,
-        */
-    },
+    #[error("Constraints proved impossible to satisfy.")]
+    UnsatisfiableConstraints,
 }
 
+// XXX We need a more robust concept of fronts. We should keep adding border tiles on both the
+// east and western "fronts" until we get a border back. This way we'll be able to tile
+// configurations that expand by more than 1 tile per row. E.g., [west] [meat] [east] that can
+// all grow independantly. Once this completes all 3 components become the next row.
 impl<'a> Row<'a> {
     pub fn new(set: &'a TileSet, border: &Tile, board: &Vec<TileRef>) -> Result<Self> {
         let both_fronts = 2; // west + east
@@ -188,9 +208,8 @@ impl<'a> Row<'a> {
                 let cloud = &mut later[0];
 
                 if !cloud.constrain(pred, &Orientation::West) {
-                    Err(RowError::UnsatisfiableConstraints {
-                        direction: Direction::West,
-                    })?;
+                    Err(RowError::UnsatisfiableConstraints)
+                    .context(format!("western: cloud {}: {}, other: {}", i, cloud, pred))?;
                 }
             }
 
@@ -204,9 +223,8 @@ impl<'a> Row<'a> {
                 let cloud = &mut earlier[0];
                 let succ = &later[0];
                 if !cloud.constrain(succ, &Orientation::East) {
-                    Err(RowError::UnsatisfiableConstraints {
-                        direction: Direction::East,
-                    })?;
+                    Err(RowError::UnsatisfiableConstraints)
+                    .context(format!("eastern: cloud {}: {}, other: {}", i, cloud, succ))?;
                 }
             }
         }
@@ -288,22 +306,24 @@ mod constraint_tests {
         let mut everything = TileCloud::new(&set, initial, TileCloudConf::Whatever);
 
         // A TileCloud with only one thing on its mind.
-        let initial = vec![
-            neighbor
-        ].iter()
+        let initial = vec![neighbor]
+            .iter()
             .clone()
             .map(|tile| *set.get(tile).expect("should be present"))
             .collect();
         let neighbor = TileCloud::new(&set, initial, TileCloudConf::Whatever);
 
-        assert_eq!(everything.constrain(&neighbor, &Orientation::East), true, "There should be one tile that satisfies the neighbor constraint.");
+        assert_eq!(
+            everything.constrain(&neighbor, &Orientation::East),
+            true,
+            "There should be one tile that satisfies the neighbor constraint."
+        );
 
         let tile_ref = everything.select().expect("there should be a valid tile");
         assert_eq!(succ, set[tile_ref]);
     }
 
     // TODO add a test for the select() edge cases
-
 
     #[test]
     fn successor_row() {
@@ -332,10 +352,8 @@ mod constraint_tests {
         let row = Row::new(&set, &border, &init).expect("valid row");
         let succ = row.to_vec().expect("valid successor row");
 
-        let verified_succ: Vec<TileRef> = vec![
-            set_and_shift,
-            shift_and_repeat,
-        ].iter()
+        let verified_succ: Vec<TileRef> = vec![set_and_shift, shift_and_repeat]
+            .iter()
             .map(|tile| *set.get(tile).expect("tile should be present"))
             .collect();
         assert_eq!(succ, verified_succ);

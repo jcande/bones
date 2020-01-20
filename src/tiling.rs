@@ -54,7 +54,7 @@ impl std::fmt::Display for Tile {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "(n: {}, e: {}, s: {}, w: {})",
+            "Tile({}, {}, {}, {})",
             self.north, self.east, self.south, self.west
         )
     }

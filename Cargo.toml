@@ -1,9 +1,10 @@
 [package]
 name = "bones"
 version = "0.1.0"
-authors = ["jsc <candelaria.jared@gmail.com>"]
+authors = ["jsc <jsc+bones@demigods.org>"]
 edition = "2018"
 
 [dependencies]
 anyhow = "1.0"
 thiserror = "1.0"
+nom = "5"
