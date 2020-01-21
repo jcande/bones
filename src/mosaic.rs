@@ -11,11 +11,14 @@ use crate::tiling::TileSet;
 
 use crate::constraint::Row;
 
+use crate::wmach;
+use crate::compiler;
+
 pub type BoardState = Vec<Tile>;
 pub type BoardStateRef = Vec<TileRef>;
 
 #[derive(Debug)]
-pub struct Mosaic {
+pub struct Program {
     set: TileSet,
     border: Tile,
 
@@ -31,7 +34,7 @@ pub enum MosaicError {
     InvalidTileBorder { tile: Tile },
 }
 
-impl Mosaic {
+impl Program {
     pub fn new(set: HashSet<Tile>, border_tile: Tile, initial: BoardState) -> Result<Self> {
         if !set.contains(&border_tile) {
             Err(MosaicError::InvalidTileBorder { tile: border_tile })?;
@@ -72,6 +75,60 @@ impl Mosaic {
     }
 }
 
+// This is our compiler from w-machine to wang tiles.
+impl compiler::Backend for wmach::Program {
+    type Target = Program;
+
+    // XXX remove me later
+    #[allow(unreachable_code)]
+    fn compile(&self) -> Result<Self::Target> {
+        println!("{:?}", self);
+        todo!("the compiler");
+
+        // shut the compiler up for now
+        let border = Tile::new(0, 0, 0, 0);
+        let set: HashSet<Tile> = vec![border].into_iter().collect();
+        let init: BoardState = vec![border];
+        Ok(Program::new(set, border, init)?)
+    }
+    //
+    // XXX should also return some debug symbols (jmp_table?)
+    /*
+    pub fn compile(&self) -> Result<crate::mosaic::Program> {
+
+        todo!("sad");
+
+        let mut rules: tag::Rules = HashMap::new();
+
+        for (i, insn) in self.instructions.iter().enumerate() {
+            let translated = match insn {
+                Insn::Write(value) => {
+                    Self::mk_write(i, &value)
+                },
+                Insn::Seek(direction) => {
+                    Self::mk_seek(i, &direction)
+                },
+                Insn::Io(rw) => {
+                    Self::mk_io(i, &rw)
+                },
+                Insn::Jmp(branch_t, branch_f) => {
+                    Self::mk_jmp(i, &branch_t, &branch_f)
+                },
+                Insn::Debug => {
+                    Self::mk_debug(i)   // XXX need to think about how to do this
+                },
+            };
+
+            rules.extend(translated);
+        }
+
+        // XXX start start? This can then generate .data
+        let default_queue = vec!["s0_0".to_owned(), "s0_0".to_owned()];
+        tag::Program::from_components(2, rules, default_queue)
+    }
+    */
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -93,7 +150,7 @@ mod tests {
         .into_iter()
         .collect();
         let init: BoardState = vec![starter_tile];
-        let mut board = Mosaic::new(set, border, init).expect("should construct successfully");
+        let mut board = Program::new(set, border, init).expect("should construct successfully");
 
         for _ in 0..3 {
             board.step().expect("should step successfully");

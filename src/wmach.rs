@@ -123,7 +123,7 @@ pub type Code = Vec<Insn>;
 
 #[derive(Debug)]
 pub struct Program {
-    pub instructions: Code,
+    instructions: Code,
     labels: LabelMap,
 }
 
@@ -324,13 +324,13 @@ fn any_statement(input: &str) -> nom::IResult<&str, Stmt> {
 }
 
 
-fn program_statements(input: &str) -> nom::IResult<&str, Vec<Stmt>> {
+fn parse_entry(input: &str) -> nom::IResult<&str, Vec<Stmt>> {
     many0(any_statement)(input)
 }
 
 impl Program {
     fn parse_statements(unparsed: &str) -> Result<Vec<Stmt>, WmachErr> {
-        let (rest, statements) = program_statements(unparsed)
+        let (rest, statements) = parse_entry(unparsed)
             .map_err(|e| WmachErr::GeneralError {
                 message: format!("Nom Error: {}", e),
              })?;
@@ -354,43 +354,6 @@ impl Program {
 
         Program::from_str(&unparsed_file)
     }
-
-    // XXX should also return some debug symbols (jmp_table?)
-    //pub fn compile(&self) -> Result<tag::Program, failure::Error> 
-    pub fn compile(&self) -> Result<()> {
-
-        todo!("need to rip out the tag specific bits. Can we make this method a trait?");
-
-        /*
-        let mut rules: tag::Rules = HashMap::new();
-
-        for (i, insn) in self.instructions.iter().enumerate() {
-            let translated = match insn {
-                Insn::Write(value) => {
-                    Self::mk_write(i, &value)
-                },
-                Insn::Seek(direction) => {
-                    Self::mk_seek(i, &direction)
-                },
-                Insn::Io(rw) => {
-                    Self::mk_io(i, &rw)
-                },
-                Insn::Jmp(branch_t, branch_f) => {
-                    Self::mk_jmp(i, &branch_t, &branch_f)
-                },
-                Insn::Debug => {
-                    Self::mk_debug(i)   // XXX need to think about how to do this
-                },
-            };
-
-            rules.extend(translated);
-        }
-
-        // XXX start start? This can then generate .data
-        let default_queue = vec!["s0_0".to_owned(), "s0_0".to_owned()];
-        tag::Program::from_components(2, rules, default_queue)
-        */
-    }
 }
 
 #[cfg(test)]
@@ -413,6 +376,30 @@ mod constraint_tests {
             _ => panic!("wrong variant"),
         };
         assert_eq!(id, name);
+    }
+
+    #[test]
+    fn stacked_label() {
+        let program = "alias0: alias1:";
+        let result = Program::from_str(&program).expect("should parse fine");
+
+        // This is kind of insane... Basically we want to iterate over each element and ensure
+        // they're all identical.
+        let value = result.labels.values().fold(Ok(None), |acc, offset| {
+            if acc.is_ok() {
+                let inner = acc.unwrap();
+                if inner.is_none() {
+                    Ok(Some(offset))
+                } else if inner != Some(offset) {
+                    Err(())
+                } else {
+                    acc
+                }
+            } else {
+                acc
+            }
+        });
+        assert!(value.is_ok());
     }
 
     #[test]
@@ -614,6 +601,7 @@ mod constraint_tests {
     #[test]
     fn parse_statement() {
         for program in [] {
+        }
     }
     */
 

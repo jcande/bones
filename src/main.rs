@@ -1,25 +1,33 @@
 use anyhow::Result;
 
-use std::collections::HashSet;
 use std::path::Path;
-use std::str::FromStr;
 
 extern crate nom;
 
+mod compiler;
 mod constraint;
-mod emulator;
+mod mosaic;
 mod tiling;
 mod wmach;
 
-use crate::tiling::Tile;
-
-use crate::emulator::BoardState;
-use crate::emulator::Mosaic;
+// This is required to use the Backend::compile method. There is probably a better/nicer way to do
+// this.
+use compiler::Backend;
 
 fn main() -> Result<()> {
-    let program = wmach::Program::from_file(Path::new("test.wm"))?;
+    let mut mosaic = wmach::Program::from_file(Path::new("test.wm"))?
+        .compile()?;
 
-    println!("{:?}", program);
+    mosaic.step()?;
+
+    /*
+     * TODO
+     * - Think about IO. Will we need to actual throw this down into the Tiles?
+     * - Implement the actual compiler backend (or at least some of the more trivial
+     *      instructions)
+     */
+
+    println!("{:?}", mosaic);
 
     Ok(())
 }
