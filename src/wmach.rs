@@ -28,15 +28,6 @@ use nom::{
     sequence::tuple,
 };
 
-/*
-fn forge_symbol(pos: usize, name: &str) -> String {
-    let mut symbol = name.to_string();
-    symbol.push('_');
-    symbol.push_str(&pos.to_string());
-    symbol
-}
-*/
-
 #[derive(Debug, Error)]
 pub enum WmachErr {
     #[error("{message}")]
@@ -123,8 +114,8 @@ pub type Code = Vec<Insn>;
 
 #[derive(Debug)]
 pub struct Program {
-    instructions: Code,
-    labels: LabelMap,
+    pub instructions: Code,
+    pub labels: LabelMap,
 }
 
 impl FromStr for Program {
@@ -320,9 +311,14 @@ fn any_statement(input: &str) -> nom::IResult<&str, Stmt> {
     // being
     let (input, _) = opt(comment)(input)?;
     let (input, _) = multispace0(input)?;
-    statement(input)
-}
 
+    let (input, stmt) = statement(input)?;
+
+    let (input, _) = opt(comment)(input)?;
+    let (input, _) = multispace0(input)?;
+
+    Ok((input, stmt))
+}
 
 fn parse_entry(input: &str) -> nom::IResult<&str, Vec<Stmt>> {
     many0(any_statement)(input)

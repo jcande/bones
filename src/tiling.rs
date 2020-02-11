@@ -4,6 +4,23 @@ use std::ops::Index;
 use std::ops::Neg;
 
 pub type Pip = usize;
+pub fn pip_from_components(position: usize, value: usize) -> Pip {
+    // N.B., We don't need a "head" field because the "position" (i.e., program
+    // counter) is ALWAYS greater than 0 and is ONLY used in the "head" tile.
+    // So if we see a program counter then we know that's where the head is
+    // located.
+    // XXX This should be a bitfield of some sort. Essentially the position is the top, head is
+    // bit 1, and value is bit 0.
+    assert!(position < ((std::usize::MAX << 1) & std::usize::MAX));
+    assert!(!!value == value);
+
+    (position << 1) | ((value & 1) << 0)
+}
+
+pub const EMPTY_PIP: Pip = 0;
+pub const ZERO_PIP: Pip = 0;
+pub const ONE_PIP: Pip = 1;
+pub const UNALLOCATED_PIP: Pip = (std::u32::MAX >> 1) as Pip;    // XXX This is tightly coupled with pip_from_components. This should be a bitfield or something
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Direction {
@@ -42,6 +59,22 @@ impl Neg for Direction {
     }
 }
 
+/*
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+struct Block {
+    north: Pip,
+    east: Pip,
+    south: Pip,
+    west: Pip,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub enum Tile {
+    Pure(Block),
+    In(Block, [2; Block]),
+    Out(Block, bool),
+}
+*/
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Tile {
     north: Pip,
@@ -52,11 +85,29 @@ pub struct Tile {
 
 impl std::fmt::Display for Tile {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        /*
         write!(
             f,
-            "Tile({}, {}, {}, {})",
+            "Tile({:x}, {:x}, {:x}, {:x})",
             self.north, self.east, self.south, self.west
         )
+        */
+
+        f.write_str("Tile(")?;
+        for (i, pip) in vec![self.north, self.east, self.south, self.west].iter().enumerate() {
+            if *pip == (std::usize::MAX >> 1) {
+                f.write_str("U")?;
+            } else {
+                f.write_fmt(format_args!("{:x}", pip))?;
+            }
+
+            if i + 1 < 4 {
+                f.write_str(", ")?;
+            }
+        }
+        f.write_str(")")?;
+
+        Ok(())
     }
 }
 
@@ -88,6 +139,22 @@ pub type TileRef = u32;
 pub struct TileSet {
     set: Vec<Tile>,
     lookup: HashMap<Tile, TileRef>,
+}
+
+impl std::fmt::Display for TileSet {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("TileSet(")?;
+        for (i, tile) in self.set.iter().enumerate() {
+            f.write_fmt(format_args!("{}", tile))?;
+
+            if i < self.set.len() - 1 {
+                f.write_str(", ")?;
+            }
+        }
+        f.write_str(")")?;
+
+        Ok(())
+    }
 }
 
 impl TileSet {

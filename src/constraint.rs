@@ -152,6 +152,41 @@ pub enum RowError {
     UnsatisfiableConstraints,
 }
 
+fn print_cloud(name: &str, pos: isize, cloud: &Vec<TileCloud>) {
+    return;
+
+    println!("{} row {}", name, pos);
+    for (i, cloud) in cloud.iter().enumerate() {
+
+        println!("{}", i);
+        for r in cloud.cloud.iter() {
+            println!("\t{}", cloud.tiles[*r]);
+        }
+    }
+    println!("");
+}
+
+fn print_set(name: &str, set: &HashSet<TileRef>, tiles: &TileSet) {
+    return;
+
+    println!("{}", name);
+    for r in set.iter() {
+        let tile = &tiles[*r];
+        println!("\t{}: {}", r, tile);
+    }
+    println!("");
+}
+fn print_vec(name: &str, set: &Vec<TileRef>, tiles: &TileSet) {
+    return;
+
+    println!("{}", name);
+    for r in set.iter() {
+        let tile = &tiles[*r];
+        println!("\t{}: {}", r, tile);
+    }
+    println!("");
+}
+
 // XXX We need a more robust concept of fronts. We should keep adding border tiles on both the
 // east and western "fronts" until we get a border back. This way we'll be able to tile
 // configurations that expand by more than 1 tile per row. E.g., [west] [meat] [east] that can
@@ -168,9 +203,18 @@ impl<'a> Row<'a> {
         // case the machine expands. That leaves the loop where we generate the successor cloud
         // based on the current row of tiles.
 
+        // XXX depending on how costly this is, we should pre-compute the western and eastern
+        // clouds
+        let latitude: HashSet<TileRef> = set.matches_tile(border, Direction::South).into_iter().collect();
+        print_set("lat", &latitude, set);
+
         // west
         {
-            let cloud = set.matches_tile(border, Direction::East);
+            //println!("west stats");
+            let longitude: HashSet<TileRef> = set.matches_tile(border, Direction::East).into_iter().collect();
+            print_set("long", &longitude, set);
+            let cloud: Vec<TileRef> = longitude.intersection(&latitude).cloned().collect();
+            print_vec("cloud", &cloud, set);
             let cloud = TileCloud::new(set, cloud, TileCloudConf::Prefer(border_ref));
             row.push(cloud);
         }
@@ -183,7 +227,11 @@ impl<'a> Row<'a> {
 
         // east
         {
-            let cloud = set.matches_tile(border, Direction::West);
+            //println!("east stats");
+            let longitude: HashSet<TileRef> = set.matches_tile(border, Direction::West).into_iter().collect();
+            print_set("long", &longitude, set);
+            let cloud: Vec<TileRef> = longitude.intersection(&latitude).cloned().collect();
+            print_vec("cloud", &cloud, set);
             let cloud = TileCloud::new(set, cloud, TileCloudConf::Prefer(border_ref));
             row.push(cloud);
         }
@@ -196,8 +244,12 @@ impl<'a> Row<'a> {
     }
 
     pub fn to_vec(mut self) -> Result<Vec<TileRef>> {
+        print_cloud("pristine", -1, &self.row);
+
+        let first: usize = 0;
+        let last: usize = self.row.len() - 1;
         for i in 0..self.row.len() {
-            if i > 0 {
+            if i > first {
                 // westward
                 /*
                 let pred  = &    self.row[i-1];
@@ -211,9 +263,10 @@ impl<'a> Row<'a> {
                     Err(RowError::UnsatisfiableConstraints)
                     .context(format!("western: cloud {}: {}, other: {}", i, cloud, pred))?;
                 }
+                print_cloud("westward", i as isize, &self.row);
             }
 
-            if i < (self.row.len() - 1) {
+            if i < last {
                 // eastward
                 /*
                 let succ  = &    self.row[i+1];
@@ -226,6 +279,7 @@ impl<'a> Row<'a> {
                     Err(RowError::UnsatisfiableConstraints)
                     .context(format!("eastern: cloud {}: {}, other: {}", i, cloud, succ))?;
                 }
+                print_cloud("eastward", i as isize, &self.row);
             }
         }
 
