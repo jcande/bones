@@ -1,31 +1,18 @@
-use std::fs::File;
-use std::path::Path;
 use std::collections::HashMap;
-use std::str::FromStr;
-use std::io::Read;
 use std::fmt;
+use std::fs::File;
+use std::io::Read;
+use std::path::Path;
+use std::str::FromStr;
 
-use thiserror::Error;
 use anyhow::Result;
+use thiserror::Error;
 
 use nom::{
-    branch::alt,
-
-    bytes::complete::tag,
-    bytes::complete::take_while1,
-    bytes::complete::is_not,
-
-    character::complete::multispace0,
-    character::complete::multispace1,
-    character::complete::space0,
-
-    combinator::opt,
-
-    multi::many0,
-
-    sequence::pair,
-    sequence::separated_pair,
-    sequence::tuple,
+    branch::alt, bytes::complete::is_not, bytes::complete::tag, bytes::complete::take_while1,
+    character::complete::multispace0, character::complete::multispace1,
+    character::complete::space0, combinator::opt, multi::many0, sequence::pair,
+    sequence::separated_pair, sequence::tuple,
 };
 
 #[derive(Debug, Error)]
@@ -46,9 +33,7 @@ pub enum WmachErr {
 
 impl From<std::io::Error> for WmachErr {
     fn from(error: std::io::Error) -> WmachErr {
-        WmachErr::IoError {
-            err: error,
-        }
+        WmachErr::IoError { err: error }
     }
 }
 
@@ -91,7 +76,6 @@ pub enum IoOp {
     Out,
 }
 
-
 pub type LabelId = String;
 pub type InsnOffset = usize;
 pub type LabelMap = HashMap<LabelId, InsnOffset>;
@@ -130,7 +114,9 @@ impl FromStr for Program {
         for stmt in statements.iter() {
             if let Stmt::Label(label_id) = stmt {
                 if jmp_table.contains_key(label_id) {
-                    Err(WmachErr::DuplicateLabel{ label: label_id.to_owned() })?
+                    Err(WmachErr::DuplicateLabel {
+                        label: label_id.to_owned(),
+                    })?
                 }
 
                 jmp_table.insert(label_id.to_owned(), offset);
@@ -144,27 +130,25 @@ impl FromStr for Program {
 
         // make instructions
         let mut insns: Vec<Insn> = Vec::new();
-        for (offset, stmt) in statements.iter().filter(|stmt| {
-            // Skip labels
-            match stmt {
-                Stmt::Label(_) => false,
-                _ => true,
-            }
-        }).enumerate() {
+        for (offset, stmt) in statements
+            .iter()
+            .filter(|stmt| {
+                // Skip labels
+                match stmt {
+                    Stmt::Label(_) => false,
+                    _ => true,
+                }
+            })
+            .enumerate()
+        {
             let insn = match stmt {
-                Stmt::Write(value) => {
-                    Insn::Write(*value)
-                },
-                Stmt::Seek(direction) => {
-                    Insn::Seek(*direction)
-                },
-                Stmt::Io(rw) => {
-                    Insn::Io(*rw)
-                },
+                Stmt::Write(value) => Insn::Write(*value),
+                Stmt::Seek(direction) => Insn::Seek(*direction),
+                Stmt::Io(rw) => Insn::Io(*rw),
                 Stmt::Jmp(branch_t, branch_f) => {
                     let target_address = |branch: &Target| match branch {
-                        Target::NextAddress     => Some(offset + 1),
-                        Target::Name(label_id)  => jmp_table.get(label_id).cloned(),
+                        Target::NextAddress => Some(offset + 1),
+                        Target::Name(label_id) => jmp_table.get(label_id).cloned(),
                     };
 
                     // missing label error
@@ -178,18 +162,18 @@ impl FromStr for Program {
                     })?;
 
                     Insn::Jmp(t, f)
-                },
+                }
                 Stmt::Debug => Insn::Debug,
 
                 _ => {
                     panic!("Shouldn't reach this");
-                },
+                }
             };
 
             insns.push(insn);
         }
 
-        Ok(Program{
+        Ok(Program {
             instructions: insns,
             labels: jmp_table,
         })
@@ -198,38 +182,41 @@ impl FromStr for Program {
 
 fn label(input: &str) -> nom::IResult<&str, &str> {
     take_while1(|input| {
-            // misc = { "'" | '_' }
-            // label_id = (alpha | digit | misc)+
-            match input {
-                'a' ..= 'z' => true,
-                'A' ..= 'Z' => true,
-                '0' ..= '9' => true,
-                '\'' => true,
-                '_' => true,
-                _ => false,
-            }
-        })(input)
+        // misc = { "'" | '_' }
+        // label_id = (alpha | digit | misc)+
+        match input {
+            'a'..='z' => true,
+            'A'..='Z' => true,
+            '0'..='9' => true,
+            '\'' => true,
+            '_' => true,
+            _ => false,
+        }
+    })(input)
 }
 
 fn label_op(input: &str) -> nom::IResult<&str, Stmt> {
-        let colon = tag(":");
+    let colon = tag(":");
 
-        let (input, (label_id, _, _, _)) =
-            tuple((label, space0, colon, multispace0))(input)?;
-        let label_id = label_id.to_string();
+    let (input, (label_id, _, _, _)) = tuple((label, space0, colon, multispace0))(input)?;
+    let label_id = label_id.to_string();
 
-        Ok((input, Stmt::Label(label_id)))
+    Ok((input, Stmt::Label(label_id)))
 }
 
 fn jmp_op(input: &str) -> nom::IResult<&str, Stmt> {
     let op = tag("jmp");
-    let (input, (_, true_branch)) =
-        separated_pair(op, multispace1, label)(input)?;
+    let (input, (_, true_branch)) = separated_pair(op, multispace1, label)(input)?;
     let true_branch = Target::Name(true_branch.to_string());
 
     let separator = tag(",");
-    let (input, result) =
-        opt(tuple((multispace0, separator, multispace0, label, multispace0)))(input)?;
+    let (input, result) = opt(tuple((
+        multispace0,
+        separator,
+        multispace0,
+        label,
+        multispace0,
+    )))(input)?;
     let false_branch = match result {
         Some((_, _, _, name, _)) => Target::Name(name.to_string()),
         None => Target::NextAddress,
@@ -240,68 +227,69 @@ fn jmp_op(input: &str) -> nom::IResult<&str, Stmt> {
 
 fn set_op(input: &str) -> nom::IResult<&str, Stmt> {
     let op = tag("+");
-    let (input, (_, _)) =
-        pair(op, multispace0)(input)?;
+    let (input, (_, _)) = pair(op, multispace0)(input)?;
 
     Ok((input, Stmt::Write(WriteOp::Set)))
 }
 
 fn unset_op(input: &str) -> nom::IResult<&str, Stmt> {
     let op = tag("-");
-    let (input, (_, _)) =
-        tuple((op, multispace0))(input)?;
+    let (input, (_, _)) = tuple((op, multispace0))(input)?;
 
     Ok((input, Stmt::Write(WriteOp::Unset)))
 }
 
 fn seek_left_op(input: &str) -> nom::IResult<&str, Stmt> {
     let op = tag("<");
-    let (input, (_, _)) =
-        tuple((op, multispace0))(input)?;
+    let (input, (_, _)) = tuple((op, multispace0))(input)?;
 
     Ok((input, Stmt::Seek(SeekOp::Left)))
 }
 
 fn seek_right_op(input: &str) -> nom::IResult<&str, Stmt> {
     let op = tag(">");
-    let (input, (_, _)) =
-        tuple((op, multispace0))(input)?;
+    let (input, (_, _)) = tuple((op, multispace0))(input)?;
 
     Ok((input, Stmt::Seek(SeekOp::Right)))
 }
 
 fn input_op(input: &str) -> nom::IResult<&str, Stmt> {
     let op = tag(",");
-    let (input, (_, _)) =
-        tuple((op, multispace0))(input)?;
+    let (input, (_, _)) = tuple((op, multispace0))(input)?;
 
     Ok((input, Stmt::Io(IoOp::In)))
 }
 
 fn output_op(input: &str) -> nom::IResult<&str, Stmt> {
     let op = tag(".");
-    let (input, (_, _)) =
-        tuple((op, multispace0))(input)?;
+    let (input, (_, _)) = tuple((op, multispace0))(input)?;
 
     Ok((input, Stmt::Io(IoOp::Out)))
 }
 
 fn debug_op(input: &str) -> nom::IResult<&str, Stmt> {
     let op = tag("!");
-    let (input, (_, _)) =
-        tuple((op, multispace0))(input)?;
+    let (input, (_, _)) = tuple((op, multispace0))(input)?;
 
     Ok((input, Stmt::Debug))
 }
 
 fn statement(input: &str) -> nom::IResult<&str, Stmt> {
-    alt((label_op, jmp_op, set_op, unset_op, seek_left_op, seek_right_op, input_op, output_op,
-         debug_op))(input)
+    alt((
+        label_op,
+        jmp_op,
+        set_op,
+        unset_op,
+        seek_left_op,
+        seek_right_op,
+        input_op,
+        output_op,
+        debug_op,
+    ))(input)
 }
 
 fn comment(input: &str) -> nom::IResult<&str, ()> {
-    let (input, _) =
-        tuple((tag("/*"), is_not("*/"), tag("*/"), multispace0))(input)?;
+    let (input, _) = tuple((tag("/*"), is_not("*/"), tag("*/"), multispace0))(input)?;
 
     Ok((input, ()))
 }
@@ -326,15 +314,11 @@ fn parse_entry(input: &str) -> nom::IResult<&str, Vec<Stmt>> {
 
 impl Program {
     fn parse_statements(unparsed: &str) -> Result<Vec<Stmt>, WmachErr> {
-        let (rest, statements) = parse_entry(unparsed)
-            .map_err(|e| WmachErr::GeneralError {
-                message: format!("Nom Error: {}", e),
-             })?;
+        let (rest, statements) = parse_entry(unparsed).map_err(|e| WmachErr::GeneralError {
+            message: format!("Nom Error: {}", e),
+        })?;
 
-        let rest = String::from_utf8(rest
-                                     .as_bytes()
-                                     .to_vec())
-            .expect("Invalid UTF8");
+        let rest = String::from_utf8(rest.as_bytes().to_vec()).expect("Invalid UTF8");
         if rest.len() > 0 {
             Err(WmachErr::GeneralError {
                 message: format!("Left over data: {}", rest),

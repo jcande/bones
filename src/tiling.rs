@@ -20,7 +20,7 @@ pub fn pip_from_components(position: usize, value: usize) -> Pip {
 pub const EMPTY_PIP: Pip = 0;
 pub const ZERO_PIP: Pip = 0;
 pub const ONE_PIP: Pip = 1;
-pub const UNALLOCATED_PIP: Pip = (std::u32::MAX >> 1) as Pip;    // XXX This is tightly coupled with pip_from_components. This should be a bitfield or something
+pub const UNALLOCATED_PIP: Pip = (std::u32::MAX >> 1) as Pip; // XXX This is tightly coupled with pip_from_components. This should be a bitfield or something
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Direction {
@@ -94,7 +94,10 @@ impl std::fmt::Display for Tile {
         */
 
         f.write_str("Tile(")?;
-        for (i, pip) in vec![self.north, self.east, self.south, self.west].iter().enumerate() {
+        for (i, pip) in vec![self.north, self.east, self.south, self.west]
+            .iter()
+            .enumerate()
+        {
             if *pip == (std::usize::MAX >> 1) {
                 f.write_str("U")?;
             } else {

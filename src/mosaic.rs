@@ -5,20 +5,20 @@ use thiserror::Error;
 use std::collections::HashSet;
 use std::fmt;
 
+use crate::tiling::pip_from_components;
+use crate::tiling::Pip;
 use crate::tiling::Tile;
 use crate::tiling::TileRef;
 use crate::tiling::TileSet;
-use crate::tiling::ZERO_PIP;
-use crate::tiling::ONE_PIP;
 use crate::tiling::EMPTY_PIP;
+use crate::tiling::ONE_PIP;
 use crate::tiling::UNALLOCATED_PIP;
-use crate::tiling::pip_from_components;
-use crate::tiling::Pip;
+use crate::tiling::ZERO_PIP;
 
 use crate::constraint::Row;
 
-use crate::wmach;
 use crate::compiler;
+use crate::wmach;
 
 pub type BoardState = Vec<Tile>;
 pub type BoardStateRef = Vec<TileRef>;
@@ -33,7 +33,10 @@ pub struct Program {
 
 impl std::fmt::Display for Program {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_fmt(format_args!("Program(Code: {}; Border: {}; State: (", self.set, self.border))?;
+        f.write_fmt(format_args!(
+            "Program(Code: {}; Border: {}; State: (",
+            self.set, self.border
+        ))?;
 
         let last = self.state.len() - 1;
         for (i, r) in self.state.iter().enumerate() {
@@ -133,7 +136,7 @@ impl Program {
         // we treat as a magic number. By adding to it, we at least have >=2
         // which shouldn't ever occur in an east/west pip. This may change
         // later but I hope not. Also, YOLO.
-        let bind: Pip = position + 1;  // XXX shitty hack just to try shit out
+        let bind: Pip = position + 1; // XXX shitty hack just to try shit out
 
         // Entry point tiles.
         {
@@ -221,9 +224,11 @@ impl compiler::Backend for wmach::Program {
         // Void Wranglers
         {
             // Have some stopgap tiles so we don't grow each row.
-            let west_alcove = Tile::new(UNALLOCATED_PIP, EMPTY_PIP, UNALLOCATED_PIP, UNALLOCATED_PIP);
+            let west_alcove =
+                Tile::new(UNALLOCATED_PIP, EMPTY_PIP, UNALLOCATED_PIP, UNALLOCATED_PIP);
             set.push(west_alcove);
-            let east_alcove = Tile::new(UNALLOCATED_PIP, UNALLOCATED_PIP, UNALLOCATED_PIP, EMPTY_PIP);
+            let east_alcove =
+                Tile::new(UNALLOCATED_PIP, UNALLOCATED_PIP, UNALLOCATED_PIP, EMPTY_PIP);
             set.push(east_alcove);
         }
 
@@ -237,7 +242,12 @@ impl compiler::Backend for wmach::Program {
         }
 
         // This is our void. It sorrounds us on every side.
-        let border = Tile::new(UNALLOCATED_PIP, UNALLOCATED_PIP, UNALLOCATED_PIP, UNALLOCATED_PIP);
+        let border = Tile::new(
+            UNALLOCATED_PIP,
+            UNALLOCATED_PIP,
+            UNALLOCATED_PIP,
+            UNALLOCATED_PIP,
+        );
         set.push(border);
 
         let unique_magic = 0x24242424;
@@ -253,23 +263,23 @@ impl compiler::Backend for wmach::Program {
         for (i, insn) in self.instructions.iter().enumerate() {
             let i = i + BASE_OFFSET;
             let mut translated = match insn {
-                wmach::Insn::Write(value) =>
-                    Program::mk_write(i, value),
-                wmach::Insn::Seek(direction) =>
-                    Program::mk_seek(i, &direction),
-                wmach::Insn::Io(rw) =>
-                    Program::mk_io(i, &rw),
-                wmach::Insn::Jmp(branch_t, branch_f) =>
-                    Program::mk_jmp(i, &branch_t, &branch_f),
+                wmach::Insn::Write(value) => Program::mk_write(i, value),
+                wmach::Insn::Seek(direction) => Program::mk_seek(i, &direction),
+                wmach::Insn::Io(rw) => Program::mk_io(i, &rw),
+                wmach::Insn::Jmp(branch_t, branch_f) => Program::mk_jmp(i, &branch_t, &branch_f),
                 wmach::Insn::Debug => {
                     todo!("debug: {:?}", insn);
-                },
+                }
             };
 
             set.append(&mut translated);
         }
 
-        Program::new(set.into_iter().collect(), border, vec![initial_west, initial, initial_east])
+        Program::new(
+            set.into_iter().collect(),
+            border,
+            vec![initial_west, initial, initial_east],
+        )
     }
 }
 
@@ -289,12 +299,8 @@ mod tests {
         // Program:
         // top: > jmp top, top
         let set: HashSet<Tile> = vec![
-            starter,
-            border,
-            shift,
-            next_1,
+            starter, border, shift, next_1,
             next_0,
-
             /*
             Tile::new(1, 0, 1, 0),
             Tile::new(10, 0, 6, 0),

@@ -157,7 +157,6 @@ fn print_cloud(name: &str, pos: isize, cloud: &Vec<TileCloud>) {
 
     println!("{} row {}", name, pos);
     for (i, cloud) in cloud.iter().enumerate() {
-
         println!("{}", i);
         for r in cloud.cloud.iter() {
             println!("\t{}", cloud.tiles[*r]);
@@ -205,13 +204,19 @@ impl<'a> Row<'a> {
 
         // XXX depending on how costly this is, we should pre-compute the western and eastern
         // clouds
-        let latitude: HashSet<TileRef> = set.matches_tile(border, Direction::South).into_iter().collect();
+        let latitude: HashSet<TileRef> = set
+            .matches_tile(border, Direction::South)
+            .into_iter()
+            .collect();
         print_set("lat", &latitude, set);
 
         // west
         {
             //println!("west stats");
-            let longitude: HashSet<TileRef> = set.matches_tile(border, Direction::East).into_iter().collect();
+            let longitude: HashSet<TileRef> = set
+                .matches_tile(border, Direction::East)
+                .into_iter()
+                .collect();
             print_set("long", &longitude, set);
             let cloud: Vec<TileRef> = longitude.intersection(&latitude).cloned().collect();
             print_vec("cloud", &cloud, set);
@@ -228,7 +233,10 @@ impl<'a> Row<'a> {
         // east
         {
             //println!("east stats");
-            let longitude: HashSet<TileRef> = set.matches_tile(border, Direction::West).into_iter().collect();
+            let longitude: HashSet<TileRef> = set
+                .matches_tile(border, Direction::West)
+                .into_iter()
+                .collect();
             print_set("long", &longitude, set);
             let cloud: Vec<TileRef> = longitude.intersection(&latitude).cloned().collect();
             print_vec("cloud", &cloud, set);
@@ -261,7 +269,7 @@ impl<'a> Row<'a> {
 
                 if !cloud.constrain(pred, &Orientation::West) {
                     Err(RowError::UnsatisfiableConstraints)
-                    .context(format!("western: cloud {}: {}, other: {}", i, cloud, pred))?;
+                        .context(format!("western: cloud {}: {}, other: {}", i, cloud, pred))?;
                 }
                 print_cloud("westward", i as isize, &self.row);
             }
@@ -277,7 +285,7 @@ impl<'a> Row<'a> {
                 let succ = &later[0];
                 if !cloud.constrain(succ, &Orientation::East) {
                     Err(RowError::UnsatisfiableConstraints)
-                    .context(format!("eastern: cloud {}: {}, other: {}", i, cloud, succ))?;
+                        .context(format!("eastern: cloud {}: {}, other: {}", i, cloud, succ))?;
                 }
                 print_cloud("eastward", i as isize, &self.row);
             }
