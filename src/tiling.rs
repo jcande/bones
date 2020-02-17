@@ -4,8 +4,6 @@ use std::fmt;
 use std::ops::Index;
 use std::ops::Neg;
 
-// TODO try to remove some of the billion different IoStyles, Essences, SideEffects, etc
-
 pub type Pip = usize;
 pub fn pip_from_components(position: usize, value: usize) -> Pip {
     // N.B., We don't need a "head" field because the "position" (i.e., program
@@ -238,8 +236,7 @@ pub struct DominoPile {
     buffer: Vec<Tile>,
     as_ref: HashMap<Tile, TileRef>,
 
-    // TODO Make this InputAlts<TileRef>
-    input: HashMap<TileRef, InputAlts<Tile>>,
+    input: HashMap<TileRef, InputAlts<TileRef>>,
     output: HashMap<TileRef, bool>,
 
     impure_watermark: TileRef,
@@ -291,11 +288,16 @@ impl DominoPile {
         }
 
         // Create the input lookup table
-        let input: HashMap<TileRef, InputAlts<Tile>> = dominoes
+        let input: HashMap<TileRef, InputAlts<TileRef>> = dominoes
             .iter()
             .filter(|domino| domino.side_effect.is_input())
             .map(|domino| match domino.side_effect {
-                SideEffects::In(alts) => (as_ref[&domino.tile], alts),
+                SideEffects::In(alts) => {
+                    let zero = as_ref[&alts[0]];
+                    let one = as_ref[&alts[1]];
+
+                    (as_ref[&domino.tile], [zero, one])
+                },
                 _ => panic!("We must only operate on SideEffects::In"),
             })
             .clone()
@@ -336,10 +338,7 @@ impl DominoPile {
         }
 
         if let Some(alts) = self.input.get(tile_ref) {
-            let zero = self.as_ref[&alts[0]];
-            let one = self.as_ref[&alts[1]];
-
-            SideEffects::In([zero, one])
+            SideEffects::In(*alts)
         } else if let Some(value) = self.output.get(tile_ref) {
             SideEffects::Out(*value)
         } else {
