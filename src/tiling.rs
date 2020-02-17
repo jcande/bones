@@ -257,17 +257,15 @@ impl DominoPile {
 
         // Iterate over all of the In dominoes, pulling out their inner Tiles
         // so that we can add them to the overall set.
-        let alts = dominoes
-            .iter()
-            .fold(Vec::new(), |mut acc, domino| {
-                if let SideEffects::In(inputs) = domino.side_effect {
-                    for alt in inputs.iter() {
-                        acc.push(*alt);
-                    }
+        let alts = dominoes.iter().fold(Vec::new(), |mut acc, domino| {
+            if let SideEffects::In(inputs) = domino.side_effect {
+                for alt in inputs.iter() {
+                    acc.push(*alt);
                 }
+            }
 
-                acc
-            });
+            acc
+        });
 
         // Now buffer contains every Tile that the machine can use. It is also
         // ordered [Out, In, Pure] so we can quickly check to see what style a
@@ -297,7 +295,7 @@ impl DominoPile {
                     let one = as_ref[&alts[1]];
 
                     (as_ref[&domino.tile], [zero, one])
-                },
+                }
                 _ => panic!("We must only operate on SideEffects::In"),
             })
             .clone()
@@ -393,9 +391,7 @@ impl Index<&Tile> for DominoPile {
 
     #[inline]
     fn index(&self, tile: &Tile) -> &Self::Output {
-        self.as_ref
-            .get(tile)
-            .expect("Out of bounds access")
+        self.as_ref.get(tile).expect("Out of bounds access")
     }
 }
 

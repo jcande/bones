@@ -16,7 +16,6 @@ mod wmach;
 
 use compiler::Backend;
 
-
 #[derive(Error, Debug)]
 pub enum BoneError {
     #[error("Command-line help requested.")]
@@ -41,7 +40,7 @@ fn go(mosaic: &mut mosaic::Program) -> Result<()> {
 }
 
 fn usage(opts: getopts::Options) -> Result<()> {
-    let brief = format!("Usage: <xxx> FILE [options]");
+    let brief = format!("Usage: bones FILE [options]");
     eprintln!("{}", opts.usage(&brief));
 
     Err(BoneError::Help)?;
@@ -57,7 +56,7 @@ fn main() -> Result<()> {
     opts.optflag("h", "help", "print this help menu");
 
     let matches = opts.parse(&args[1..])?;
-    if matches.opt_present("h") {
+    if matches.opt_present("h") || !(matches.opt_present("f") || matches.opt_present("s")) {
         usage(opts)?;
     }
 
@@ -70,9 +69,9 @@ fn main() -> Result<()> {
 
         wmach::Program::from_str(&src)
     } else {
-        //usage(opts)
-        todo!("this shit sucks")
-    }?.compile()?;
+        panic!("Fix the required matches in the command line parser.");
+    }?
+    .compile()?;
 
     go(&mut mosaic)?;
 

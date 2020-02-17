@@ -53,6 +53,9 @@ pub enum MosaicError {
 
     #[error("Invalid input domino: {domino}. Its input alternate tiles must differ only in southern pip.")]
     InvalidInputAlts { domino: Domino },
+
+    #[error("Invalid initial tile: {tile}. This tile does not match its neighbors.")]
+    InvalidInitialTile { tile: Tile },
 }
 
 #[derive(Debug)]
@@ -87,7 +90,11 @@ impl std::fmt::Display for Program {
 }
 
 impl Program {
-    pub fn new(set: HashSet<Domino>, border_tile: Tile, initial: BoardState) -> Result<Self, MosaicError> {
+    pub fn new(
+        set: HashSet<Domino>,
+        border_tile: Tile,
+        initial: BoardState,
+    ) -> Result<Self, MosaicError> {
         // Ensure the number of tiles is small enough to be held in a TileRef
         if set.len() >= UNALLOCATED_PIP {
             Err(MosaicError::TooManyTiles)?;
@@ -95,8 +102,7 @@ impl Program {
 
         // Ensure the Input (impure) tile's alts share the same pips,
         // aside from the south (so the matching rules work)
-        for domino in set.iter()
-        {
+        for domino in set.iter() {
             let main = domino.tile;
             let alts = match domino.side_effect {
                 SideEffects::In(alts) => alts,
@@ -113,21 +119,54 @@ impl Program {
         }
 
         // Ensure initial is consistent (i.e., matches with itself!)
+        let first: usize = 0;
+        let last: usize = initial.len() - 1;
         for (i, tile) in initial.iter().enumerate() {
-            //todo!("consistent tiles")
+            // We do not verify the northern pip because we could feasibly be
+            // passsed in some tile machine state that has already evolved from
+            // an initial point. Maybe this is a dumb assumption. For now it
+            // seems safest.
+
+            // Look westward
+            {
+                let mut pred = &border_tile;
+                if i > first {
+                    pred = &initial[i - 1];
+                }
+
+                let dir = Direction::West;
+                if tile.cardinal(&dir) != pred.cardinal(&-dir) {
+                    Err(MosaicError::InvalidInitialTile { tile: *tile })?;
+                }
+            }
+
+            // Look eastward
+            {
+                let mut succ = &border_tile;
+                if i < last {
+                    succ = &initial[i + 1];
+                }
+
+                let dir = Direction::East;
+                if tile.cardinal(&dir) != succ.cardinal(&-dir) {
+                    Err(MosaicError::InvalidInitialTile { tile: *tile })?;
+                }
+            }
         }
 
         let tiles = DominoPile::new(set.into_iter().collect());
 
         // Ensure all border tile is contained in the tile-set.
-        let border = *tiles.get(&border_tile)
+        let border = *tiles
+            .get(&border_tile)
             .ok_or(MosaicError::InvalidTileBorder { tile: border_tile })?;
 
         // Ensure all tiles in initial are contained in the tile-set and
         // convert Tiles into TileRefs.
         let mut state = Vec::new();
         for tile in initial.iter() {
-            let r = tiles.get(tile)
+            let r = tiles
+                .get(tile)
                 .ok_or(MosaicError::InvalidTile { tile: *tile })?;
             state.push(*r);
         }
@@ -431,5 +470,10 @@ mod tests {
             .map(|tile| *board.pile.get(tile).expect("tile present"))
             .collect();
         assert_eq!(state, board.state);
+    }
+
+    #[test]
+    fn verify_alts() {
+        // TODO make InputAlts that do not share the same pips.
     }
 }

@@ -63,13 +63,16 @@ impl<'process> TileCloud<'process> {
         // XXX may want to pre-calculate each pip as that is used a lot
         Self {
             tiles: tiles,
-            cloud: initial.into_iter().filter(|tile_ref| {
+            cloud: initial
+                .into_iter()
+                .filter(|tile_ref| {
                     // Bar hidden tiles from consideration.
                     match tiles.get_side_effects(tile_ref) {
                         SideEffects::Pure(PurityBias::Hidden) => false,
                         _ => true,
                     }
-                }).collect(),
+                })
+                .collect(),
             conf: conf,
         }
     }
@@ -83,8 +86,7 @@ impl<'process> TileCloud<'process> {
     }
 
     // Orientation is where the other tilecloud is in relation to self
-    // XXX turn into result
-    pub fn constrain(&mut self, other: &TileCloud, orientation: &Orientation) -> bool {
+    pub fn constrain(&mut self, other: &TileCloud, orientation: &Orientation) -> Result<(), TileCloudError> {
         assert!(
             *orientation != Orientation::North && *orientation != Orientation::South,
             "north/south constraints don't make sense in this context"
@@ -103,7 +105,11 @@ impl<'process> TileCloud<'process> {
         }
         self.cloud = keep;
 
-        !self.cloud.is_empty()
+        if self.cloud.is_empty() {
+            Err(TileCloudError::NoTilesLeft)
+        } else {
+            Ok(())
+        }
     }
 
     pub fn select(&self) -> Result<TileRef, TileCloudError> {
@@ -160,9 +166,6 @@ pub enum RowError {
         source: TileCloudError,
     },
 
-    #[error("Invalid border tile: {tile}. The tile is not contained in the given tile pile")]
-    InvalidTileBorder { tile: Tile },
-
     #[error("Constraints proved impossible to satisfy: {context}.")]
     UnsatisfiableConstraints { context: String },
 }
@@ -172,9 +175,16 @@ pub enum RowError {
 // configurations that expand by more than 1 tile per row. E.g., [west] [meat] [east] that can
 // all grow independantly. Once this completes all 3 components become the next row.
 impl<'process> Row<'process> {
-    pub fn new(pile: &'process DominoPile, border: &TileRef, board: &Vec<TileRef>) -> Result<Self, RowError> {
+    pub fn new(
+        pile: &'process DominoPile,
+        border: &TileRef,
+        board: &Vec<TileRef>,
+    ) -> Result<Self, RowError> {
         let both_fronts = 2; // west + east
         let mut row: Vec<TileCloud> = Vec::with_capacity(board.len() + both_fronts);
+
+        // XXX We have no way of verifying whether or not border is a valid
+        // reference. Is this ok?
 
         // The main idea is that we may or may not use the border clouds. They are only added in
         // case the machine expands. That leaves the loop where we generate the successor cloud
@@ -230,9 +240,10 @@ impl<'process> Row<'process> {
                 let pred = &earlier[0];
                 let cloud = &mut later[0];
 
-                if !cloud.constrain(pred, &Orientation::West) {
-                    Err(RowError::UnsatisfiableConstraints { context: format!("western: cloud {}: {}, other: {}", i, cloud, pred)})?;
-                }
+                cloud.constrain(pred, &Orientation::West)
+                    .map_err(|_| RowError::UnsatisfiableConstraints {
+                        context: format!("western: cloud {}: {}, other: {}", i, cloud, pred),
+                    })?;
             }
 
             if i < last {
@@ -244,9 +255,10 @@ impl<'process> Row<'process> {
                 let (earlier, later) = self.row[i..i + 2].split_at_mut(1);
                 let cloud = &mut earlier[0];
                 let succ = &later[0];
-                if !cloud.constrain(succ, &Orientation::East) {
-                    Err(RowError::UnsatisfiableConstraints { context: format!("eastern: cloud {}: {}, other: {}", i, cloud, succ)})?;
-                }
+                cloud.constrain(succ, &Orientation::East)
+                    .map_err(|_| RowError::UnsatisfiableConstraints {
+                        context: format!("eastern: cloud {}: {}, other: {}", i, cloud, succ),
+                    })?;
             }
         }
 
@@ -273,8 +285,8 @@ impl<'process> Row<'process> {
 
 #[cfg(test)]
 mod constraint_tests {
-    use crate::tiling::Domino;
     use super::*;
+    use crate::tiling::Domino;
 
     #[test]
     fn pips_by_position() {
@@ -331,11 +343,8 @@ mod constraint_tests {
             .collect();
         let neighbor = TileCloud::new(&pile, initial, TileCloudConf::Whatever);
 
-        assert_eq!(
-            everything.constrain(&neighbor, &Orientation::East),
-            true,
-            "There should be one tile that satisfies the neighbor constraint."
-        );
+        everything.constrain(&neighbor, &Orientation::East)
+            .expect("There should be one tile that satisfies the neighbor constraint.");
 
         let tile_ref = everything.select().expect("there should be a valid tile");
         assert_eq!(succ, pile[tile_ref]);
