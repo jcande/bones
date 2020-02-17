@@ -6,7 +6,6 @@ use std::fmt;
 use crate::tiling::pip_from_components;
 use crate::tiling::Direction;
 use crate::tiling::Domino;
-use crate::tiling::IoStyle;
 use crate::tiling::DominoPile;
 use crate::tiling::Pip;
 use crate::tiling::SideEffects;
@@ -99,8 +98,8 @@ impl Program {
         for domino in set.iter()
         {
             let main = domino.tile;
-            let alts = match domino.style {
-                IoStyle::In(alts) => alts,
+            let alts = match domino.side_effect {
+                SideEffects::In(alts) => alts,
                 _ => continue,
             };
 

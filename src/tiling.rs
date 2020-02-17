@@ -114,100 +114,78 @@ impl Tile {
     }
 }
 
-#[derive(PartialEq, Eq)]
-enum Essence {
-    Out = 0,
-    In = 1,
-    Pure = 2,
-}
-impl Ord for Essence {
-    fn cmp(&self, other: &Self) -> Ordering {
-        match self {
-            Essence::Out => match other {
-                Essence::Out => Ordering::Equal,
-                Essence::In => Ordering::Less,
-                Essence::Pure => Ordering::Less,
-            },
-            Essence::In => match other {
-                Essence::Out => Ordering::Greater,
-                Essence::In => Ordering::Equal,
-                Essence::Pure => Ordering::Less,
-            },
-            Essence::Pure => match other {
-                Essence::Out => Ordering::Greater,
-                Essence::In => Ordering::Greater,
-                Essence::Pure => Ordering::Equal,
-            },
-        }
-    }
-}
-impl PartialOrd for Essence {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-type InputAlts = [Tile; 2];
-type InputAltRefs = [TileRef; 2];
+type InputAlts<T> = [T; 2];
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
-pub enum IoStyle {
-    Pure,
-    In(InputAlts),
+pub enum PurityBias {
+    Nothing,
+    Hidden,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub enum SideEffects<T> {
+    Pure(PurityBias),
+    In(InputAlts<T>),
     Out(bool),
 }
 
-impl Ord for IoStyle {
+impl<T: std::cmp::Eq> Ord for SideEffects<T> {
     fn cmp(&self, other: &Self) -> Ordering {
-        fn as_essence(style: &IoStyle) -> Essence {
-            match style {
-                IoStyle::Pure => Essence::Pure,
-                IoStyle::In(_) => Essence::In,
-                IoStyle::Out(_) => Essence::Out,
-            }
+        match self {
+            SideEffects::Out(_) => match other {
+                SideEffects::Out(_) => Ordering::Equal,
+                SideEffects::In(_) => Ordering::Less,
+                SideEffects::Pure(_) => Ordering::Less,
+            },
+            SideEffects::In(_) => match other {
+                SideEffects::Out(_) => Ordering::Greater,
+                SideEffects::In(_) => Ordering::Equal,
+                SideEffects::Pure(_) => Ordering::Less,
+            },
+            SideEffects::Pure(_) => match other {
+                SideEffects::Out(_) => Ordering::Greater,
+                SideEffects::In(_) => Ordering::Greater,
+                SideEffects::Pure(_) => Ordering::Equal,
+            },
         }
-
-        let this = as_essence(&self);
-        let that = as_essence(other);
-
-        this.cmp(&that)
     }
 }
-impl PartialOrd for IoStyle {
+impl<T: std::cmp::Eq> PartialOrd for SideEffects<T> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl IoStyle {
+impl<T> SideEffects<T> {
     pub fn is_pure(&self) -> bool {
         match self {
-            IoStyle::Pure => true,
+            SideEffects::Pure(_) => true,
             _ => false,
         }
     }
 
     pub fn is_input(&self) -> bool {
         match self {
-            IoStyle::In(_) => true,
+            SideEffects::In(_) => true,
             _ => false,
         }
     }
 
     pub fn is_output(&self) -> bool {
         match self {
-            IoStyle::Out(_) => true,
+            SideEffects::Out(_) => true,
             _ => false,
         }
     }
 }
 
-impl std::fmt::Display for IoStyle {
+impl<T> std::fmt::Display for SideEffects<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            IoStyle::Pure => f.write_str("Pure"),
-            IoStyle::In(_) => f.write_str("In"),
-            IoStyle::Out(_) => f.write_str("Out"),
+            SideEffects::Pure(PurityBias::Hidden) => f.write_str("Pure(hidden)"),
+            SideEffects::Pure(_) => f.write_str("Pure"),
+            SideEffects::In(_) => f.write_str("In"),
+            SideEffects::Out(_) => f.write_str("Out"),
         }?;
 
         Ok(())
@@ -216,28 +194,28 @@ impl std::fmt::Display for IoStyle {
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Domino {
-    pub style: IoStyle,
+    pub side_effect: SideEffects<Tile>,
     pub tile: Tile,
 }
 
 impl Domino {
     pub fn pure(tile: Tile) -> Domino {
         Domino {
-            style: IoStyle::Pure,
+            side_effect: SideEffects::Pure(PurityBias::Nothing),
             tile: tile,
         }
     }
 
-    pub fn input(tile: Tile, alts: InputAlts) -> Domino {
+    pub fn input(tile: Tile, alts: InputAlts<Tile>) -> Domino {
         Domino {
-            style: IoStyle::In(alts),
+            side_effect: SideEffects::In(alts),
             tile: tile,
         }
     }
 
     pub fn output(tile: Tile, bit: bool) -> Domino {
         Domino {
-            style: IoStyle::Out(bit),
+            side_effect: SideEffects::Out(bit),
             tile: tile,
         }
     }
@@ -245,24 +223,10 @@ impl Domino {
 
 impl std::fmt::Display for Domino {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_fmt(format_args!("Domino({}, {})", self.style, self.tile))?;
+        f.write_fmt(format_args!("Domino({}, {})", self.side_effect, self.tile))?;
 
         Ok(())
     }
-}
-
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
-pub enum PurityBias {
-    Nothing,
-    Hidden,
-}
-
-// XXX combine with IoStyle (make it <Tile> and <TileRef>) and then remove Essence
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
-pub enum SideEffects {
-    Pure(PurityBias),
-    In(InputAltRefs),
-    Out(bool),
 }
 
 // If we have more than 4 billion then we'll have to bump it
@@ -274,7 +238,8 @@ pub struct DominoPile {
     buffer: Vec<Tile>,
     as_ref: HashMap<Tile, TileRef>,
 
-    input: HashMap<TileRef, InputAlts>,
+    // TODO Make this InputAlts<TileRef>
+    input: HashMap<TileRef, InputAlts<Tile>>,
     output: HashMap<TileRef, bool>,
 
     impure_watermark: TileRef,
@@ -284,12 +249,12 @@ pub struct DominoPile {
 impl DominoPile {
     pub fn new(mut dominoes: Vec<Domino>) -> Self {
         // Sort dominoes into [Out; In; Pure] order.
-        dominoes.sort_unstable_by(|x, y| x.style.cmp(&y.style));
+        dominoes.sort_unstable_by(|x, y| x.side_effect.cmp(&y.side_effect));
 
         // If a reference is strictly less than watermark then it must be an IO
         // related Tile. This property is guaranteed by the above sort.
-        let watermark: TileRef = dominoes.iter().fold(0, |i, x| match x.style {
-            IoStyle::Pure => i,
+        let watermark: TileRef = dominoes.iter().fold(0, |i, x| match x.side_effect {
+            SideEffects::Pure(_) => i,
             _ => i + 1,
         });
 
@@ -298,7 +263,7 @@ impl DominoPile {
         let alts = dominoes
             .iter()
             .fold(Vec::new(), |mut acc, domino| {
-                if let IoStyle::In(inputs) = domino.style {
+                if let SideEffects::In(inputs) = domino.side_effect {
                     for alt in inputs.iter() {
                         acc.push(*alt);
                     }
@@ -326,12 +291,12 @@ impl DominoPile {
         }
 
         // Create the input lookup table
-        let input: HashMap<TileRef, InputAlts> = dominoes
+        let input: HashMap<TileRef, InputAlts<Tile>> = dominoes
             .iter()
-            .filter(|domino| domino.style.is_input())
-            .map(|domino| match domino.style {
-                IoStyle::In(alts) => (as_ref[&domino.tile], alts),
-                _ => panic!("We must only operate on IoStyle::In"),
+            .filter(|domino| domino.side_effect.is_input())
+            .map(|domino| match domino.side_effect {
+                SideEffects::In(alts) => (as_ref[&domino.tile], alts),
+                _ => panic!("We must only operate on SideEffects::In"),
             })
             .clone()
             .collect();
@@ -339,10 +304,10 @@ impl DominoPile {
         // Create the output lookup table
         let output: HashMap<TileRef, bool> = dominoes
             .iter()
-            .filter(|domino| domino.style.is_output())
-            .map(|domino| match domino.style {
-                IoStyle::Out(value) => (as_ref[&domino.tile], value),
-                _ => panic!("We must only operate on IoStyle::Out"),
+            .filter(|domino| domino.side_effect.is_output())
+            .map(|domino| match domino.side_effect {
+                SideEffects::Out(value) => (as_ref[&domino.tile], value),
+                _ => panic!("We must only operate on SideEffects::Out"),
             })
             .clone()
             .collect();
@@ -363,7 +328,7 @@ impl DominoPile {
         self.as_ref.get(tile)
     }
 
-    pub fn get_side_effects(&self, tile_ref: &TileRef) -> SideEffects {
+    pub fn get_side_effects(&self, tile_ref: &TileRef) -> SideEffects<TileRef> {
         if *tile_ref >= self.hidden_watermark {
             return SideEffects::Pure(PurityBias::Hidden);
         } else if *tile_ref >= self.impure_watermark {
@@ -382,7 +347,7 @@ impl DominoPile {
         }
     }
 
-    pub fn get_tile_side_effects(&self, tile: &Tile) -> SideEffects {
+    pub fn get_tile_side_effects(&self, tile: &Tile) -> SideEffects<TileRef> {
         let tile_ref = self.as_ref[tile];
 
         self.get_side_effects(&tile_ref)
@@ -566,8 +531,10 @@ mod tile_tests {
 
     #[test]
     fn essence_ordering() {
+        /*
         assert!(Essence::Out < Essence::In);
         assert!(Essence::In < Essence::Pure);
+        */
 
         let doms = vec![
             Domino::pure(Tile::new(0, 0, 0, 0)),
@@ -578,31 +545,48 @@ mod tile_tests {
             Domino::output(Tile::new(2, 2, 2, 2), false),
         ];
 
+        #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+        enum LookingFor {
+            Out,
+            In,
+            Pure,
+            Hidden,
+        }
+
         let pile = DominoPile::new(doms);
-        let mut state = Essence::Out;
+        let mut state = LookingFor::Out;
         for tile in pile.buffer.iter() {
-            if state == Essence::Out {
+            if state == LookingFor::Out {
                 match pile.get_tile_side_effects(tile) {
                     SideEffects::Out(_) => (),
                     _ => {
-                        state = Essence::In;
+                        state = LookingFor::In;
                         ()
                     }
                 };
-            } else if state == Essence::In {
+            } else if state == LookingFor::In {
                 match pile.get_tile_side_effects(tile) {
                     SideEffects::In(_) => (),
                     SideEffects::Out(_) => panic!("DominoPile::buffer is misordered"),
                     SideEffects::Pure(_) => {
-                        state = Essence::Pure;
+                        state = LookingFor::Pure;
                         ()
                     }
                 };
-            } else if state == Essence::Pure {
+            } else if state == LookingFor::Pure {
                 match pile.get_tile_side_effects(tile) {
-                    SideEffects::Pure(_) => (),
+                    SideEffects::Pure(PurityBias::Nothing) => (),
+                    SideEffects::Pure(PurityBias::Hidden) => {
+                        state = LookingFor::Hidden;
+                        ()
+                    }
                     _ => panic!("DominoPile::buffer is misordered"),
                 };
+            } else if state == LookingFor::Hidden {
+                match pile.get_tile_side_effects(tile) {
+                    SideEffects::Pure(PurityBias::Hidden) => (),
+                    _ => panic!("DominoPile::buffer is misordered"),
+                }
             } else {
                 panic!("Test is broken. Fix the state transitions");
             }
