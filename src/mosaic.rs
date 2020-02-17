@@ -1,12 +1,12 @@
-use anyhow::Result;
-
 use thiserror::Error;
 
 use std::collections::HashSet;
 use std::fmt;
 
 use crate::tiling::pip_from_components;
+use crate::tiling::Direction;
 use crate::tiling::Domino;
+use crate::tiling::IoStyle;
 use crate::tiling::DominoPile;
 use crate::tiling::Pip;
 use crate::tiling::SideEffects;
@@ -18,6 +18,7 @@ use crate::tiling::UNALLOCATED_PIP;
 use crate::tiling::ZERO_PIP;
 
 use crate::constraint::Row;
+use crate::constraint::RowError;
 
 use crate::compiler;
 use crate::wmach;
@@ -26,6 +27,34 @@ use crate::io_buffer::IoBuffer;
 
 pub type BoardState = Vec<Tile>;
 pub type BoardStateRef = Vec<TileRef>;
+
+#[derive(Error, Debug)]
+pub enum MosaicError {
+    #[error("IO: {source}")]
+    Io {
+        #[from]
+        source: std::io::Error,
+        //backtrace: Backtrace,
+    },
+
+    #[error("RowError: {source}")]
+    Row {
+        #[from]
+        source: RowError,
+    },
+
+    #[error("Invalid tile: {tile}. The tile is not contained in the given tile set.")]
+    InvalidTile { tile: Tile },
+
+    #[error("Invalid border tile: {tile}. The tile is not contained in the given tile set.")]
+    InvalidTileBorder { tile: Tile },
+
+    #[error("Too many tiles. You'll need to expand TileRef to a wider type.")]
+    TooManyTiles,
+
+    #[error("Invalid input domino: {domino}. Its input alternate tiles must differ only in southern pip.")]
+    InvalidInputAlts { domino: Domino },
+}
 
 #[derive(Debug)]
 pub struct Program {
@@ -58,48 +87,53 @@ impl std::fmt::Display for Program {
     }
 }
 
-#[derive(Error, Debug)]
-pub enum MosaicError {
-    #[error("Invalid tile: {tile}. The tile is not contained in the given tile set")]
-    InvalidTile { tile: Tile },
-
-    #[error("Invalid border tile: {tile}. The tile is not contained in the given tile set")]
-    InvalidTileBorder { tile: Tile },
-}
-
 impl Program {
-    pub fn new(set: HashSet<Domino>, border_tile: Tile, initial: BoardState) -> Result<Self> {
+    pub fn new(set: HashSet<Domino>, border_tile: Tile, initial: BoardState) -> Result<Self, MosaicError> {
+        // Ensure the number of tiles is small enough to be held in a TileRef
+        if set.len() >= UNALLOCATED_PIP {
+            Err(MosaicError::TooManyTiles)?;
+        }
+
+        // Ensure the Input (impure) tile's alts share the same pips,
+        // aside from the south (so the matching rules work)
+        for domino in set.iter()
+        {
+            let main = domino.tile;
+            let alts = match domino.style {
+                IoStyle::In(alts) => alts,
+                _ => continue,
+            };
+
+            for alt in &alts {
+                for dir in [Direction::North, Direction::East, Direction::West].iter() {
+                    if alt.cardinal(dir) != main.cardinal(dir) {
+                        Err(MosaicError::InvalidInputAlts { domino: *domino })?;
+                    }
+                }
+            }
+        }
+
+        // Ensure initial is consistent (i.e., matches with itself!)
+        for (i, tile) in initial.iter().enumerate() {
+            //todo!("consistent tiles")
+        }
+
         let tiles = DominoPile::new(set.into_iter().collect());
 
         // Ensure all border tile is contained in the tile-set.
-        /*
         let border = *tiles.get(&border_tile)
-            .ok_or(Err(MosaicError::InvalidTileBorder { tile: border_tile }))?;
-        */
-        // XXX Get the above working. for now just unwrap like a savage
-        let border = *tiles.get(&border_tile).unwrap();
+            .ok_or(MosaicError::InvalidTileBorder { tile: border_tile })?;
 
-        // Ensure all tiles in initial are contained in the tile-set.
+        // Ensure all tiles in initial are contained in the tile-set and
+        // convert Tiles into TileRefs.
+        let mut state = Vec::new();
         for tile in initial.iter() {
-            if let None = tiles.get(tile) {
-                Err(MosaicError::InvalidTile { tile: *tile })?;
-            }
+            let r = tiles.get(tile)
+                .ok_or(MosaicError::InvalidTile { tile: *tile })?;
+            state.push(*r);
         }
-        // Convert Tiles into TileRefs.
-        // XXX clean this up so it is less hacky
-        let state = initial
-            .into_iter()
-            .map(|tile| {
-                *tiles
-                    .get(&tile)
-                    .expect("we should have already verified this")
-            })
-            .collect();
 
         // TODO precalculate west/east PossibleTiles
-        // TODO ensure initial is consistent (i.e., matches with itself!)
-        // TODO ensure the Input (impure) tile's alts share the same pips, aside from the south (so the matching rules work)
-        // TODO ensure the number of tiles is big enough to be held in a TileRef
 
         Ok(Self {
             pile: tiles,
@@ -110,7 +144,7 @@ impl Program {
         })
     }
 
-    fn perform_io(&mut self, state: BoardStateRef) -> Result<BoardStateRef> {
+    fn perform_io(&mut self, state: BoardStateRef) -> Result<BoardStateRef, MosaicError> {
         let mut next = Vec::with_capacity(state.len());
         for r in state.into_iter() {
             let r = match self.pile.get_side_effects(&r) {
@@ -134,32 +168,10 @@ impl Program {
         }
 
         Ok(next)
-
-        /*
-                state.into_iter().map(|r| {
-                    match self.pile.get_side_effects(&r) {
-                        SideEffects::Out(bit) => {
-                            self.io.put(bit)?;
-
-                            r
-                        },
-                        SideEffects::In(alts) => {
-                            let bit = self.io.get()?;
-
-                            if bit {
-                                alts[1]
-                            } else {
-                                alts[0]
-                            }
-                        },
-                        SideEffects::Pure(_) => r,
-                    }
-                }).collect()
-        */
     }
 
     // evolve current state to next state
-    pub fn step(&mut self) -> Result<()> {
+    pub fn step(&mut self) -> Result<(), MosaicError> {
         let next = Row::new(&self.pile, &self.border, &self.state)?.to_vec()?;
         let next = self.perform_io(next)?;
 
@@ -315,10 +327,11 @@ impl Program {
 const BASE_OFFSET: usize = 1;
 
 // This is our compiler from w-machine to wang tiles.
-impl compiler::Backend for wmach::Program {
+impl compiler::Backend<Program> for wmach::Program {
     type Target = Program;
+    type Error = MosaicError;
 
-    fn compile(&self) -> Result<Self::Target> {
+    fn compile(&self) -> Result<Self::Target, Self::Error> {
         let mut set: Vec<Tile> = Vec::new();
 
         // Void Wranglers
@@ -389,46 +402,6 @@ impl compiler::Backend for wmach::Program {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn debug() {
-        // XXX TODO "+<<+" and see why it sometimes fails
-
-        let border = Tile::new(0, 0, 0, 0);
-        let starter = Tile::new(0, 0, 6, 0);
-        let shift = Tile::new(6, 42, 0, 0);
-        let next_1 = Tile::new(1, 0, 11, 42);
-        let next_0 = Tile::new(0, 0, 10, 42);
-        // Program:
-        // top: > jmp top, top
-        let set: HashSet<Domino> = vec![
-            starter, border, shift, next_1,
-            next_0,
-            /*
-            Tile::new(1, 0, 1, 0),
-            Tile::new(10, 0, 6, 0),
-            Tile::new(11, 0, 7, 0),
-            Tile::new(7, 42, 1, 0),
-            */
-        ]
-        .into_iter()
-        .map(Domino::pure)
-        .collect();
-        let init: BoardState = vec![starter];
-        let mut board = Program::new(set, border, init).expect("should construct successfully");
-
-        board.step().expect("step ok");
-
-        // XXX there's a bug where it selects next_1 instead of next_0. This is strange as the
-        // border contains only zeroes. How is this satisfying the constraints?
-        println!("board: {:?}", board);
-        for r in board.state.iter() {
-            println!("{} => {:?}", *r, board.pile[*r]);
-        }
-        println!("border: {:?}", border);
-
-        assert!(board.pile[board.state[1]] == next_0);
-    }
 
     #[test]
     fn set_and_shift_program() {

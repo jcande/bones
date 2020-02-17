@@ -71,6 +71,7 @@ impl<I: std::io::Read, O: std::io::Write> IoBuffer<I, O> {
 
         if self.output_buf.offset == LAST_OFFSET {
             self.output.write_all(&self.output_buf.buffer)?;
+            self.output.flush()?;
             self.output_buf = BitBuffer::new();
         }
 

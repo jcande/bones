@@ -72,20 +72,12 @@ pub struct Tile {
 
 impl std::fmt::Display for Tile {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        /*
-        write!(
-            f,
-            "Tile({:x}, {:x}, {:x}, {:x})",
-            self.north, self.east, self.south, self.west
-        )
-        */
-
         f.write_str("Tile(")?;
         for (i, pip) in vec![self.north, self.east, self.south, self.west]
             .iter()
             .enumerate()
         {
-            if *pip == (std::usize::MAX >> 1) {
+            if *pip == UNALLOCATED_PIP {
                 f.write_str("U")?;
             } else {
                 f.write_fmt(format_args!("{:x}", pip))?;
@@ -210,10 +202,22 @@ impl IoStyle {
     }
 }
 
+impl std::fmt::Display for IoStyle {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            IoStyle::Pure => f.write_str("Pure"),
+            IoStyle::In(_) => f.write_str("In"),
+            IoStyle::Out(_) => f.write_str("Out"),
+        }?;
+
+        Ok(())
+    }
+}
+
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Domino {
-    style: IoStyle,
-    tile: Tile,
+    pub style: IoStyle,
+    pub tile: Tile,
 }
 
 impl Domino {
@@ -239,12 +243,21 @@ impl Domino {
     }
 }
 
+impl std::fmt::Display for Domino {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_fmt(format_args!("Domino({}, {})", self.style, self.tile))?;
+
+        Ok(())
+    }
+}
+
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum PurityBias {
     Nothing,
     Hidden,
 }
 
+// XXX combine with IoStyle (make it <Tile> and <TileRef>) and then remove Essence
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum SideEffects {
     Pure(PurityBias),
@@ -408,6 +421,16 @@ impl Index<TileRef> for DominoPile {
     fn index(&self, index: TileRef) -> &Self::Output {
         self.buffer
             .get(index as usize)
+            .expect("Out of bounds access")
+    }
+}
+impl Index<&Tile> for DominoPile {
+    type Output = TileRef;
+
+    #[inline]
+    fn index(&self, tile: &Tile) -> &Self::Output {
+        self.as_ref
+            .get(tile)
             .expect("Out of bounds access")
     }
 }

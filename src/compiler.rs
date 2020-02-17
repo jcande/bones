@@ -1,7 +1,6 @@
-use anyhow::Result;
-
-pub trait Backend {
+pub trait Backend<Target> {
     type Target;
+    type Error;
 
-    fn compile(&self) -> Result<Self::Target>;
+    fn compile(&self) -> Result<Self::Target, Self::Error>;
 }

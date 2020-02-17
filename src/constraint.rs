@@ -1,4 +1,3 @@
-use anyhow::{Context, Result};
 use thiserror::Error;
 
 use std::collections::HashSet;
@@ -64,7 +63,13 @@ impl<'process> TileCloud<'process> {
         // XXX may want to pre-calculate each pip as that is used a lot
         Self {
             tiles: tiles,
-            cloud: initial.into_iter().collect(),
+            cloud: initial.into_iter().filter(|tile_ref| {
+                    // Bar hidden tiles from consideration.
+                    match tiles.get_side_effects(tile_ref) {
+                        SideEffects::Pure(PurityBias::Hidden) => false,
+                        _ => true,
+                    }
+                }).collect(),
             conf: conf,
         }
     }
@@ -78,6 +83,7 @@ impl<'process> TileCloud<'process> {
     }
 
     // Orientation is where the other tilecloud is in relation to self
+    // XXX turn into result
     pub fn constrain(&mut self, other: &TileCloud, orientation: &Orientation) -> bool {
         assert!(
             *orientation != Orientation::North && *orientation != Orientation::South,
@@ -90,11 +96,6 @@ impl<'process> TileCloud<'process> {
 
         let available_pips = other.positional_pips(&next);
         for r in self.cloud.iter() {
-            if let SideEffects::Pure(PurityBias::Hidden) = self.tiles.get_side_effects(r) {
-                // Bar hidden tiles from consideration.
-                continue;
-            }
-
             let pip = self.tiles[*r].cardinal(&current);
             if available_pips.contains(&pip) {
                 keep.insert(*r);
@@ -105,7 +106,7 @@ impl<'process> TileCloud<'process> {
         !self.cloud.is_empty()
     }
 
-    pub fn select(&self) -> Result<TileRef> {
+    pub fn select(&self) -> Result<TileRef, TileCloudError> {
         // The thinking behind these preferences is that we can use the border tile as a
         // tie-breaker. If the cloud is along the border then we prefer to keep a border as we
         // can discard it later. If the tile is interior then we would rather not keep the
@@ -153,11 +154,17 @@ pub struct Row<'process> {
 
 #[derive(Error, Debug)]
 pub enum RowError {
+    #[error("TileCloudError: {source}")]
+    Cloud {
+        #[from]
+        source: TileCloudError,
+    },
+
     #[error("Invalid border tile: {tile}. The tile is not contained in the given tile pile")]
     InvalidTileBorder { tile: Tile },
 
-    #[error("Constraints proved impossible to satisfy.")]
-    UnsatisfiableConstraints,
+    #[error("Constraints proved impossible to satisfy: {context}.")]
+    UnsatisfiableConstraints { context: String },
 }
 
 // XXX We need a more robust concept of fronts. We should keep adding border tiles on both the
@@ -165,7 +172,7 @@ pub enum RowError {
 // configurations that expand by more than 1 tile per row. E.g., [west] [meat] [east] that can
 // all grow independantly. Once this completes all 3 components become the next row.
 impl<'process> Row<'process> {
-    pub fn new(pile: &'process DominoPile, border: &TileRef, board: &Vec<TileRef>) -> Result<Self> {
+    pub fn new(pile: &'process DominoPile, border: &TileRef, board: &Vec<TileRef>) -> Result<Self, RowError> {
         let both_fronts = 2; // west + east
         let mut row: Vec<TileCloud> = Vec::with_capacity(board.len() + both_fronts);
 
@@ -209,7 +216,7 @@ impl<'process> Row<'process> {
         })
     }
 
-    pub fn to_vec(mut self) -> Result<Vec<TileRef>> {
+    pub fn to_vec(mut self) -> Result<Vec<TileRef>, RowError> {
         let first: usize = 0;
         let last: usize = self.row.len() - 1;
         for i in 0..self.row.len() {
@@ -224,8 +231,7 @@ impl<'process> Row<'process> {
                 let cloud = &mut later[0];
 
                 if !cloud.constrain(pred, &Orientation::West) {
-                    Err(RowError::UnsatisfiableConstraints)
-                        .context(format!("western: cloud {}: {}, other: {}", i, cloud, pred))?;
+                    Err(RowError::UnsatisfiableConstraints { context: format!("western: cloud {}: {}, other: {}", i, cloud, pred)})?;
                 }
             }
 
@@ -239,33 +245,28 @@ impl<'process> Row<'process> {
                 let cloud = &mut earlier[0];
                 let succ = &later[0];
                 if !cloud.constrain(succ, &Orientation::East) {
-                    Err(RowError::UnsatisfiableConstraints)
-                        .context(format!("eastern: cloud {}: {}, other: {}", i, cloud, succ))?;
+                    Err(RowError::UnsatisfiableConstraints { context: format!("eastern: cloud {}: {}, other: {}", i, cloud, succ)})?;
                 }
             }
         }
 
         // Check to see if we even have a valid set of tiles to work with.
-        let next = self
-            .row
-            .iter()
-            .map(|cloud| cloud.select())
-            .collect::<Result<Vec<TileRef>>>()?
-            // Now that we have some valid tiles, let's see if we need to remove the ends.
-            // XXX there's probably a better way to do this
-            .into_iter()
-            .enumerate()
-            // Remove the border pieces if they are the expected border pieces. This is to
-            // prevent us adding 2 tiles per step.
-            .filter(|(i, tile)| {
-                let in_border_position = *i == 0 || *i == (self.row.len() - 1);
-                let is_border = *tile == self.border;
-                let remove = !(in_border_position && is_border);
-                remove
-            })
-            .map(|(_, tile)| tile)
-            .collect();
+        let mut next = Vec::new();
+        for (i, cloud) in self.row.iter().enumerate() {
+            let tile_ref = cloud.select()?;
 
+            // Now that we have some valid tiles, let's see if we need to
+            // remove the ends. Remove the border pieces if they are the
+            // expected border pieces. This is to prevent us adding 2 tiles per
+            // step.
+            let in_border_position = i == 0 || i == (self.row.len() - 1);
+            let is_border = tile_ref == self.border;
+            let keep = !(in_border_position && is_border);
+
+            if keep {
+                next.push(tile_ref);
+            }
+        }
         Ok(next)
     }
 }
