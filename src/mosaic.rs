@@ -6,10 +6,12 @@ use std::collections::HashSet;
 use std::fmt;
 
 use crate::tiling::pip_from_components;
+use crate::tiling::Domino;
+use crate::tiling::DominoPile;
 use crate::tiling::Pip;
+use crate::tiling::SideEffects;
 use crate::tiling::Tile;
 use crate::tiling::TileRef;
-use crate::tiling::TileSet;
 use crate::tiling::EMPTY_PIP;
 use crate::tiling::ONE_PIP;
 use crate::tiling::UNALLOCATED_PIP;
@@ -20,14 +22,17 @@ use crate::constraint::Row;
 use crate::compiler;
 use crate::wmach;
 
+use crate::io_buffer::IoBuffer;
+
 pub type BoardState = Vec<Tile>;
 pub type BoardStateRef = Vec<TileRef>;
 
 #[derive(Debug)]
 pub struct Program {
-    set: TileSet,
-    border: Tile,
+    pile: DominoPile,
+    border: TileRef,
 
+    io: IoBuffer<std::io::Stdin, std::io::Stdout>,
     state: BoardStateRef,
 }
 
@@ -35,12 +40,12 @@ impl std::fmt::Display for Program {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_fmt(format_args!(
             "Program(Code: {}; Border: {}; State: (",
-            self.set, self.border
+            self.pile, self.pile[self.border]
         ))?;
 
         let last = self.state.len() - 1;
         for (i, r) in self.state.iter().enumerate() {
-            f.write_fmt(format_args!("{}", self.set[*r]))?;
+            f.write_fmt(format_args!("{}", self.pile[*r]))?;
 
             if i < last {
                 f.write_str(", ")?;
@@ -63,20 +68,25 @@ pub enum MosaicError {
 }
 
 impl Program {
-    pub fn new(set: HashSet<Tile>, border_tile: Tile, initial: BoardState) -> Result<Self> {
-        if !set.contains(&border_tile) {
-            Err(MosaicError::InvalidTileBorder { tile: border_tile })?;
-        }
+    pub fn new(set: HashSet<Domino>, border_tile: Tile, initial: BoardState) -> Result<Self> {
+        let tiles = DominoPile::new(set.into_iter().collect());
+
+        // Ensure all border tile is contained in the tile-set.
+        /*
+        let border = *tiles.get(&border_tile)
+            .ok_or(Err(MosaicError::InvalidTileBorder { tile: border_tile }))?;
+        */
+        // XXX Get the above working. for now just unwrap like a savage
+        let border = *tiles.get(&border_tile).unwrap();
+
         // Ensure all tiles in initial are contained in the tile-set.
         for tile in initial.iter() {
-            if !set.contains(tile) {
+            if let None = tiles.get(tile) {
                 Err(MosaicError::InvalidTile { tile: *tile })?;
             }
         }
-
-        let tiles = TileSet::new(set.into_iter().collect());
-
         // Convert Tiles into TileRefs.
+        // XXX clean this up so it is less hacky
         let state = initial
             .into_iter()
             .map(|tile| {
@@ -86,26 +96,79 @@ impl Program {
             })
             .collect();
 
-        // XXX precalculate west/east PossibleTiles
-        // XXX ensure initial is consistent (i.e., matches with itself!)
+        // TODO precalculate west/east PossibleTiles
+        // TODO ensure initial is consistent (i.e., matches with itself!)
+        // TODO ensure the Input (impure) tile's alts share the same pips, aside from the south (so the matching rules work)
+        // TODO ensure the number of tiles is big enough to be held in a TileRef
 
         Ok(Self {
-            set: tiles,
-            border: border_tile,
+            pile: tiles,
+            border: border,
+
+            io: IoBuffer::new(),
             state: state,
         })
     }
 
+    fn perform_io(&mut self, state: BoardStateRef) -> Result<BoardStateRef> {
+        let mut next = Vec::with_capacity(state.len());
+        for r in state.into_iter() {
+            let r = match self.pile.get_side_effects(&r) {
+                SideEffects::Out(bit) => {
+                    self.io.put(bit)?;
+
+                    r
+                }
+                SideEffects::In(alts) => {
+                    let bit = self.io.get()?;
+
+                    if bit {
+                        alts[1]
+                    } else {
+                        alts[0]
+                    }
+                }
+                SideEffects::Pure(_) => r,
+            };
+            next.push(r);
+        }
+
+        Ok(next)
+
+        /*
+                state.into_iter().map(|r| {
+                    match self.pile.get_side_effects(&r) {
+                        SideEffects::Out(bit) => {
+                            self.io.put(bit)?;
+
+                            r
+                        },
+                        SideEffects::In(alts) => {
+                            let bit = self.io.get()?;
+
+                            if bit {
+                                alts[1]
+                            } else {
+                                alts[0]
+                            }
+                        },
+                        SideEffects::Pure(_) => r,
+                    }
+                }).collect()
+        */
+    }
+
     // evolve current state to next state
     pub fn step(&mut self) -> Result<()> {
-        self.state = Row::new(&self.set, &self.border, &self.state)?.to_vec()?;
+        let next = Row::new(&self.pile, &self.border, &self.state)?.to_vec()?;
+        let next = self.perform_io(next)?;
 
-        // XXX will have to do some io here which will involve modifying Row
+        self.state = next;
 
         Ok(())
     }
 
-    fn mk_write(position: usize, value: &wmach::WriteOp) -> Vec<Tile> {
+    fn mk_write(position: usize, value: &wmach::WriteOp) -> Vec<Domino> {
         let mut set = Vec::new();
 
         let north_0 = pip_from_components(position, 0);
@@ -125,10 +188,10 @@ impl Program {
         let tile_1 = Tile::new(north_1, east, south, west);
         set.push(tile_1);
 
-        set
+        set.into_iter().map(Domino::pure).collect()
     }
 
-    fn mk_seek(position: usize, direction: &wmach::SeekOp) -> Vec<Tile> {
+    fn mk_seek(position: usize, direction: &wmach::SeekOp) -> Vec<Domino> {
         let mut set = Vec::new();
         // This must be UNIQUE per instruction in order to rule out annoying
         // matching problems. We'll simply use the offset+1 for this instruction
@@ -162,7 +225,7 @@ impl Program {
         {
             let north_0 = ZERO_PIP;
             let north_1 = ONE_PIP;
-            let north_U = UNALLOCATED_PIP;
+            let north_u = UNALLOCATED_PIP;
 
             let (east, west) = match direction {
                 wmach::SeekOp::Left => (bind, EMPTY_PIP),
@@ -178,18 +241,55 @@ impl Program {
             let tile_1 = Tile::new(north_1, east, south_1, west);
             set.push(tile_1);
 
-            let tile_U = Tile::new(north_U, east, south_0, west);
-            set.push(tile_U);
+            let tile_u = Tile::new(north_u, east, south_0, west);
+            set.push(tile_u);
         }
+
+        set.into_iter().map(Domino::pure).collect()
+    }
+
+    fn mk_io(position: usize, rw: &wmach::IoOp) -> Vec<Domino> {
+        let mut set = Vec::new();
+
+        let north_0 = pip_from_components(position, 0);
+        let north_1 = pip_from_components(position, 1);
+
+        let east = EMPTY_PIP;
+        let west = EMPTY_PIP;
+
+        let south_u = 0xdead;
+        let south_0 = pip_from_components(position + 1, 0);
+        let south_1 = pip_from_components(position + 1, 1);
+
+        match rw {
+            wmach::IoOp::In => {
+                let tile_0 = Tile::new(north_0, east, south_u, west);
+                let tile_0_0 = Tile::new(north_0, east, south_0, west);
+                let tile_0_1 = Tile::new(north_0, east, south_1, west);
+                let domino_0 = Domino::input(tile_0, [tile_0_0, tile_0_1]);
+                set.push(domino_0);
+
+                let tile_1 = Tile::new(north_1, east, south_u, west);
+                let tile_1_0 = Tile::new(north_1, east, south_0, west);
+                let tile_1_1 = Tile::new(north_1, east, south_1, west);
+                let domino_1 = Domino::input(tile_1, [tile_1_0, tile_1_1]);
+                set.push(domino_1);
+            }
+            wmach::IoOp::Out => {
+                let tile_0 = Tile::new(north_0, east, south_0, west);
+                let domino_0 = Domino::output(tile_0, false);
+                set.push(domino_0);
+
+                let tile_1 = Tile::new(north_1, east, south_1, west);
+                let domino_1 = Domino::output(tile_1, true);
+                set.push(domino_1);
+            }
+        };
 
         set
     }
 
-    fn mk_io(position: usize, rw: &wmach::IoOp) -> Vec<Tile> {
-        todo!("io: {}, {:?}", position, rw);
-    }
-
-    fn mk_jmp(position: usize, br_t: &wmach::InsnOffset, br_f: &wmach::InsnOffset) -> Vec<Tile> {
+    fn mk_jmp(position: usize, br_t: &wmach::InsnOffset, br_f: &wmach::InsnOffset) -> Vec<Domino> {
         let mut set = Vec::new();
 
         let north_0 = pip_from_components(position, 0);
@@ -207,7 +307,7 @@ impl Program {
         let tile_1 = Tile::new(north_1, east, south_1, west);
         set.push(tile_1);
 
-        set
+        set.into_iter().map(Domino::pure).collect()
     }
 }
 
@@ -219,7 +319,7 @@ impl compiler::Backend for wmach::Program {
     type Target = Program;
 
     fn compile(&self) -> Result<Self::Target> {
-        let mut set = Vec::new();
+        let mut set: Vec<Tile> = Vec::new();
 
         // Void Wranglers
         {
@@ -250,7 +350,7 @@ impl compiler::Backend for wmach::Program {
         );
         set.push(border);
 
-        let unique_magic = 0x24242424;
+        let unique_magic = 0x41414141;
         // first instruction starts at BASE_OFFSET because it makes my life easier here
         let start_pip = pip_from_components(BASE_OFFSET, 0);
         let initial = Tile::new(UNALLOCATED_PIP, unique_magic, start_pip, unique_magic);
@@ -259,6 +359,9 @@ impl compiler::Backend for wmach::Program {
         set.push(initial_west);
         let initial_east = Tile::new(UNALLOCATED_PIP, UNALLOCATED_PIP, EMPTY_PIP, unique_magic);
         set.push(initial_east);
+
+        // Convert the pure tiles into dominoes.
+        let mut set: Vec<Domino> = set.into_iter().map(Domino::pure).collect();
 
         for (i, insn) in self.instructions.iter().enumerate() {
             let i = i + BASE_OFFSET;
@@ -298,7 +401,7 @@ mod tests {
         let next_0 = Tile::new(0, 0, 10, 42);
         // Program:
         // top: > jmp top, top
-        let set: HashSet<Tile> = vec![
+        let set: HashSet<Domino> = vec![
             starter, border, shift, next_1,
             next_0,
             /*
@@ -309,6 +412,7 @@ mod tests {
             */
         ]
         .into_iter()
+        .map(Domino::pure)
         .collect();
         let init: BoardState = vec![starter];
         let mut board = Program::new(set, border, init).expect("should construct successfully");
@@ -319,11 +423,11 @@ mod tests {
         // border contains only zeroes. How is this satisfying the constraints?
         println!("board: {:?}", board);
         for r in board.state.iter() {
-            println!("{} => {:?}", *r, board.set[*r]);
+            println!("{} => {:?}", *r, board.pile[*r]);
         }
         println!("border: {:?}", border);
 
-        assert!(board.set[board.state[1]] == next_0);
+        assert!(board.pile[board.state[1]] == next_0);
     }
 
     #[test]
@@ -333,7 +437,7 @@ mod tests {
         let set_and_shift = Tile::new(10, 7, 1, 0);
         let stay_set = Tile::new(1, 0, 1, 0);
         let shift_and_repeat = Tile::new(0, 0, 10, 7);
-        let set: HashSet<Tile> = vec![
+        let set: HashSet<Domino> = vec![
             border,
             starter_tile,
             set_and_shift,
@@ -341,6 +445,7 @@ mod tests {
             shift_and_repeat,
         ]
         .into_iter()
+        .map(Domino::pure)
         .collect();
         let init: BoardState = vec![starter_tile];
         let mut board = Program::new(set, border, init).expect("should construct successfully");
@@ -351,7 +456,7 @@ mod tests {
 
         let state: Vec<TileRef> = vec![stay_set, stay_set, set_and_shift, shift_and_repeat]
             .iter()
-            .map(|tile| *board.set.get(tile).expect("tile present"))
+            .map(|tile| *board.pile.get(tile).expect("tile present"))
             .collect();
         assert_eq!(state, board.state);
     }

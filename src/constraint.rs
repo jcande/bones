@@ -10,8 +10,11 @@ use crate::tiling::Orientation;
 use crate::tiling::Pip;
 use crate::tiling::Tile;
 
+use crate::tiling::PurityBias;
+use crate::tiling::SideEffects;
+
+use crate::tiling::DominoPile;
 use crate::tiling::TileRef;
-use crate::tiling::TileSet;
 
 #[derive(Debug)]
 pub enum TileCloudConf {
@@ -21,13 +24,13 @@ pub enum TileCloudConf {
 }
 
 #[derive(Debug)]
-pub struct TileCloud<'a> {
-    tiles: &'a TileSet,
+pub struct TileCloud<'process> {
+    tiles: &'process DominoPile,
     cloud: HashSet<TileRef>,
     conf: TileCloudConf,
 }
 
-impl<'a> std::fmt::Display for TileCloud<'a> {
+impl<'process> std::fmt::Display for TileCloud<'process> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_fmt(format_args!("TileCloud("))?;
 
@@ -56,8 +59,8 @@ pub enum TileCloudError {
     NoTilesLeft,
 }
 
-impl<'a> TileCloud<'a> {
-    pub fn new(tiles: &'a TileSet, initial: Vec<TileRef>, conf: TileCloudConf) -> Self {
+impl<'process> TileCloud<'process> {
+    pub fn new(tiles: &'process DominoPile, initial: Vec<TileRef>, conf: TileCloudConf) -> Self {
         // XXX may want to pre-calculate each pip as that is used a lot
         Self {
             tiles: tiles,
@@ -87,6 +90,11 @@ impl<'a> TileCloud<'a> {
 
         let available_pips = other.positional_pips(&next);
         for r in self.cloud.iter() {
+            if let SideEffects::Pure(PurityBias::Hidden) = self.tiles.get_side_effects(r) {
+                // Bar hidden tiles from consideration.
+                continue;
+            }
+
             let pip = self.tiles[*r].cardinal(&current);
             if available_pips.contains(&pip) {
                 keep.insert(*r);
@@ -137,66 +145,29 @@ impl<'a> TileCloud<'a> {
 // to achieve this but for now it will not work.
 // Maybe use a list instead of a vector while we're handling TileClouds? Gotta think about how to
 // represent that "infinite" stuff though.
-pub struct Row<'a> {
-    set: &'a TileSet,
-    row: Vec<TileCloud<'a>>,
+pub struct Row<'process> {
+    pile: &'process DominoPile,
+    row: Vec<TileCloud<'process>>,
     border: TileRef,
 }
 
 #[derive(Error, Debug)]
 pub enum RowError {
-    #[error("Invalid border tile: {tile}. The tile is not contained in the given tile set")]
+    #[error("Invalid border tile: {tile}. The tile is not contained in the given tile pile")]
     InvalidTileBorder { tile: Tile },
 
     #[error("Constraints proved impossible to satisfy.")]
     UnsatisfiableConstraints,
 }
 
-fn print_cloud(name: &str, pos: isize, cloud: &Vec<TileCloud>) {
-    return;
-
-    println!("{} row {}", name, pos);
-    for (i, cloud) in cloud.iter().enumerate() {
-        println!("{}", i);
-        for r in cloud.cloud.iter() {
-            println!("\t{}", cloud.tiles[*r]);
-        }
-    }
-    println!("");
-}
-
-fn print_set(name: &str, set: &HashSet<TileRef>, tiles: &TileSet) {
-    return;
-
-    println!("{}", name);
-    for r in set.iter() {
-        let tile = &tiles[*r];
-        println!("\t{}: {}", r, tile);
-    }
-    println!("");
-}
-fn print_vec(name: &str, set: &Vec<TileRef>, tiles: &TileSet) {
-    return;
-
-    println!("{}", name);
-    for r in set.iter() {
-        let tile = &tiles[*r];
-        println!("\t{}: {}", r, tile);
-    }
-    println!("");
-}
-
 // XXX We need a more robust concept of fronts. We should keep adding border tiles on both the
 // east and western "fronts" until we get a border back. This way we'll be able to tile
 // configurations that expand by more than 1 tile per row. E.g., [west] [meat] [east] that can
 // all grow independantly. Once this completes all 3 components become the next row.
-impl<'a> Row<'a> {
-    pub fn new(set: &'a TileSet, border: &Tile, board: &Vec<TileRef>) -> Result<Self> {
+impl<'process> Row<'process> {
+    pub fn new(pile: &'process DominoPile, border: &TileRef, board: &Vec<TileRef>) -> Result<Self> {
         let both_fronts = 2; // west + east
         let mut row: Vec<TileCloud> = Vec::with_capacity(board.len() + both_fronts);
-        let border_ref = *set
-            .get(border)
-            .ok_or(RowError::InvalidTileBorder { tile: *border })?;
 
         // The main idea is that we may or may not use the border clouds. They are only added in
         // case the machine expands. That leaves the loop where we generate the successor cloud
@@ -204,56 +175,41 @@ impl<'a> Row<'a> {
 
         // XXX depending on how costly this is, we should pre-compute the western and eastern
         // clouds
-        let latitude: HashSet<TileRef> = set
-            .matches_tile(border, Direction::South)
-            .into_iter()
-            .collect();
-        print_set("lat", &latitude, set);
+        let latitude: HashSet<TileRef> =
+            pile.matches(border, Direction::South).into_iter().collect();
 
         // west
         {
-            //println!("west stats");
-            let longitude: HashSet<TileRef> = set
-                .matches_tile(border, Direction::East)
-                .into_iter()
-                .collect();
-            print_set("long", &longitude, set);
+            let longitude: HashSet<TileRef> =
+                pile.matches(border, Direction::East).into_iter().collect();
             let cloud: Vec<TileRef> = longitude.intersection(&latitude).cloned().collect();
-            print_vec("cloud", &cloud, set);
-            let cloud = TileCloud::new(set, cloud, TileCloudConf::Prefer(border_ref));
+            let cloud = TileCloud::new(pile, cloud, TileCloudConf::Prefer(*border));
             row.push(cloud);
         }
 
         for r in board.iter() {
-            let cloud = set.matches_ref(r, Direction::South);
-            let cloud = TileCloud::new(set, cloud, TileCloudConf::Avoid(border_ref));
+            let cloud = pile.matches(r, Direction::South);
+            let cloud = TileCloud::new(pile, cloud, TileCloudConf::Avoid(*border));
             row.push(cloud);
         }
 
         // east
         {
-            //println!("east stats");
-            let longitude: HashSet<TileRef> = set
-                .matches_tile(border, Direction::West)
-                .into_iter()
-                .collect();
-            print_set("long", &longitude, set);
+            let longitude: HashSet<TileRef> =
+                pile.matches(border, Direction::West).into_iter().collect();
             let cloud: Vec<TileRef> = longitude.intersection(&latitude).cloned().collect();
-            print_vec("cloud", &cloud, set);
-            let cloud = TileCloud::new(set, cloud, TileCloudConf::Prefer(border_ref));
+            let cloud = TileCloud::new(pile, cloud, TileCloudConf::Prefer(*border));
             row.push(cloud);
         }
 
         Ok(Self {
-            set: set,
+            pile: pile,
             row: row,
-            border: border_ref,
+            border: *border,
         })
     }
 
     pub fn to_vec(mut self) -> Result<Vec<TileRef>> {
-        print_cloud("pristine", -1, &self.row);
-
         let first: usize = 0;
         let last: usize = self.row.len() - 1;
         for i in 0..self.row.len() {
@@ -271,7 +227,6 @@ impl<'a> Row<'a> {
                     Err(RowError::UnsatisfiableConstraints)
                         .context(format!("western: cloud {}: {}, other: {}", i, cloud, pred))?;
                 }
-                print_cloud("westward", i as isize, &self.row);
             }
 
             if i < last {
@@ -287,7 +242,6 @@ impl<'a> Row<'a> {
                     Err(RowError::UnsatisfiableConstraints)
                         .context(format!("eastern: cloud {}: {}, other: {}", i, cloud, succ))?;
                 }
-                print_cloud("eastward", i as isize, &self.row);
             }
         }
 
@@ -318,20 +272,21 @@ impl<'a> Row<'a> {
 
 #[cfg(test)]
 mod constraint_tests {
+    use crate::tiling::Domino;
     use super::*;
 
     #[test]
     fn pips_by_position() {
         let init = Tile::new(0, 1, 2, 3);
         let tiles = vec![init, Tile::new(1, 4, 5, 6)];
-        let set = TileSet::new(tiles.clone());
+        let pile = DominoPile::new(tiles.clone().into_iter().map(Domino::pure).collect());
         let initial = tiles
             .iter()
             .clone()
-            .map(|tile| *set.get(tile).expect("should be present"))
+            .map(|tile| *pile.get(tile).expect("should be present"))
             .collect();
 
-        let cloud = TileCloud::new(&set, initial, TileCloudConf::Whatever);
+        let cloud = TileCloud::new(&pile, initial, TileCloudConf::Whatever);
 
         // Iterate over all directions and verify that the corresponding pips are present for all
         // tiles.
@@ -357,23 +312,23 @@ mod constraint_tests {
         let neighbor = Tile::new(5, 6, 7, 2);
         let misc = Tile::new(10, 10, 10, 10);
         let tiles = vec![init, succ, neighbor, misc];
-        let set = TileSet::new(tiles.clone());
+        let pile = DominoPile::new(tiles.clone().into_iter().map(Domino::pure).collect());
 
         // A TileCloud that can be anything it wants!
         let initial = tiles
             .iter()
             .clone()
-            .map(|tile| *set.get(tile).expect("should be present"))
+            .map(|tile| *pile.get(tile).expect("should be present"))
             .collect();
-        let mut everything = TileCloud::new(&set, initial, TileCloudConf::Whatever);
+        let mut everything = TileCloud::new(&pile, initial, TileCloudConf::Whatever);
 
         // A TileCloud with only one thing on its mind.
         let initial = vec![neighbor]
             .iter()
             .clone()
-            .map(|tile| *set.get(tile).expect("should be present"))
+            .map(|tile| *pile.get(tile).expect("should be present"))
             .collect();
-        let neighbor = TileCloud::new(&set, initial, TileCloudConf::Whatever);
+        let neighbor = TileCloud::new(&pile, initial, TileCloudConf::Whatever);
 
         assert_eq!(
             everything.constrain(&neighbor, &Orientation::East),
@@ -382,7 +337,7 @@ mod constraint_tests {
         );
 
         let tile_ref = everything.select().expect("there should be a valid tile");
-        assert_eq!(succ, set[tile_ref]);
+        assert_eq!(succ, pile[tile_ref]);
     }
 
     // TODO add a test for the select() edge cases
@@ -395,7 +350,7 @@ mod constraint_tests {
         let stay_set = Tile::new(1, 0, 1, 0);
         let shift_and_repeat = Tile::new(0, 0, 10, 7);
         // This program basically turns 0s into 1s and shifts right.
-        let set = vec![
+        let pile = vec![
             border,
             starter_tile,
             set_and_shift,
@@ -403,20 +358,25 @@ mod constraint_tests {
             shift_and_repeat,
         ];
 
-        let set = TileSet::new(set);
+        let pile = DominoPile::new(pile.clone().into_iter().map(Domino::pure).collect());
 
         let init = vec![starter_tile];
         let init = init
             .iter()
-            .map(|tile| *set.get(tile).expect("tile should be present"))
+            .map(|tile| *pile.get(tile).expect("tile should be present"))
             .collect();
 
-        let row = Row::new(&set, &border, &init).expect("valid row");
+        let row = Row::new(
+            &pile,
+            pile.get(&border).expect("tile should be present"),
+            &init,
+        )
+        .expect("valid row");
         let succ = row.to_vec().expect("valid successor row");
 
         let verified_succ: Vec<TileRef> = vec![set_and_shift, shift_and_repeat]
             .iter()
-            .map(|tile| *set.get(tile).expect("tile should be present"))
+            .map(|tile| *pile.get(tile).expect("tile should be present"))
             .collect();
         assert_eq!(succ, verified_succ);
     }
