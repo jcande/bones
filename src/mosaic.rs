@@ -48,6 +48,7 @@ pub enum MosaicError {
     #[error("Invalid border tile: {tile}. The tile is not contained in the given tile set.")]
     InvalidTileBorder { tile: Tile },
 
+    // TODO Make a test for this.
     #[error("Too many tiles. You'll need to expand TileRef to a wider type.")]
     TooManyTiles,
 
@@ -56,6 +57,9 @@ pub enum MosaicError {
 
     #[error("Invalid initial tile: {tile}. This tile does not match its neighbors.")]
     InvalidInitialTile { tile: Tile },
+
+    #[error("Empty initial state.")]
+    EmptyInitialState,
 }
 
 #[derive(Debug)]
@@ -100,6 +104,11 @@ impl Program {
             Err(MosaicError::TooManyTiles)?;
         }
 
+        // Ensure there is some state to work with.
+        if initial.len() == 0 {
+            Err(MosaicError::EmptyInitialState)?;
+        }
+
         // Ensure the Input (impure) tile's alts share the same pips,
         // aside from the south (so the matching rules work)
         for domino in set.iter() {
@@ -116,6 +125,23 @@ impl Program {
                     }
                 }
             }
+        }
+
+        let tiles = DominoPile::new(set.into_iter().collect());
+
+        // Ensure all border tile is contained in the tile-set.
+        let border = *tiles
+            .get(&border_tile)
+            .ok_or(MosaicError::InvalidTileBorder { tile: border_tile })?;
+
+        // Ensure all tiles in initial are contained in the tile-set and
+        // convert Tiles into TileRefs.
+        let mut state = Vec::new();
+        for tile in initial.iter() {
+            let r = tiles
+                .get(tile)
+                .ok_or(MosaicError::InvalidTile { tile: *tile })?;
+            state.push(*r);
         }
 
         // Ensure initial is consistent (i.e., matches with itself!)
@@ -152,23 +178,6 @@ impl Program {
                     Err(MosaicError::InvalidInitialTile { tile: *tile })?;
                 }
             }
-        }
-
-        let tiles = DominoPile::new(set.into_iter().collect());
-
-        // Ensure all border tile is contained in the tile-set.
-        let border = *tiles
-            .get(&border_tile)
-            .ok_or(MosaicError::InvalidTileBorder { tile: border_tile })?;
-
-        // Ensure all tiles in initial are contained in the tile-set and
-        // convert Tiles into TileRefs.
-        let mut state = Vec::new();
-        for tile in initial.iter() {
-            let r = tiles
-                .get(tile)
-                .ok_or(MosaicError::InvalidTile { tile: *tile })?;
-            state.push(*r);
         }
 
         // TODO precalculate west/east PossibleTiles
@@ -477,7 +486,64 @@ mod tests {
     }
 
     #[test]
+    fn check_empty_state() {
+        let border = Tile::new(0, 0, 0, 0);
+        let set = vec![Domino::pure(border)].into_iter().collect();
+
+        match Program::new(set, border, vec![]) {
+            Err(MosaicError::EmptyInitialState) => (),
+            _ => panic!("Failed to ensure that initial state is non-empty."),
+        };
+    }
+
+    #[test]
     fn verify_alts() {
-        todo!("Make InputAlts that do not share the same pips.");
+        let border = Tile::new(0, 0, 0, 0);
+        let tile = Tile::new(1, 1, 0, 1);
+        let alt0 = Tile::new(1, 0xbad, 0, 1);
+        let alt1 = Tile::new(1, 1, 0, 1);
+        let set = vec![Domino::pure(border), Domino::input(tile, [alt0, alt1])].into_iter().collect();
+
+        match Program::new(set, border, vec![border]) {
+            Err(MosaicError::InvalidInputAlts { domino: _ }) => (),
+            x => panic!("Failed to ensure that the alts are drop-in replacements of the originator tile: {:?}", x),
+        };
+    }
+
+    #[test]
+    fn verify_border_check() {
+        let border = Tile::new(0, 0, 0, 0);
+        let initial = Tile::new(1, 1, 1, 1);
+        let set = vec![Domino::pure(initial)].into_iter().collect();
+
+        match Program::new(set, border, vec![initial]) {
+            Err(MosaicError::InvalidTileBorder { tile: _ }) => (),
+            x => panic!("Failed to ensure border tile is present: {:?}", x),
+        };
+    }
+
+    #[test]
+    fn verify_initial_tiles_preset() {
+        let border = Tile::new(0, 0, 0, 0);
+        let extra = Tile::new(1, 1, 1, 1);
+        let set = vec![Domino::pure(border)].into_iter().collect();
+
+        match Program::new(set, border, vec![border, extra]) {
+            Err(MosaicError::InvalidTile { tile: _ }) => (),
+            x => panic!("Failed to ensure tile is present: {:?}", x),
+        };
+    }
+
+    #[test]
+    fn verify_initial_tiles() {
+        let border = Tile::new(0, 0, 0, 0);
+        let left = Tile::new(0, 1, 0, 0);
+        let right = Tile::new(0, 0xbad, 0, 1);
+        let set = vec![border, left, right].into_iter().map(Domino::pure).collect();
+
+        match Program::new(set, border, vec![left, right]) {
+            Err(MosaicError::InvalidInitialTile { tile: _ }) => (),
+            x => panic!("Failed to ensure tiles match: {:?}", x),
+        };
     }
 }

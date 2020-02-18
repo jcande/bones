@@ -28,9 +28,6 @@ pub enum BoneError {
 }
 
 fn go(mosaic: &mut mosaic::Program) -> Result<()> {
-    println!("{}", mosaic);
-    println!("{:?}", mosaic);
-
     loop {
         mosaic.step()?;
     }

@@ -15,6 +15,12 @@ use crate::tiling::SideEffects;
 use crate::tiling::DominoPile;
 use crate::tiling::TileRef;
 
+#[derive(Error, Debug)]
+pub enum TileCloudError {
+    #[error("The cloud had unsatisfiable constraints. There are no possible tiles available.")]
+    NoTilesLeft,
+}
+
 #[derive(Debug)]
 #[cfg_attr(not(test), allow(dead_code))]
 pub enum TileCloudConf {
@@ -51,12 +57,6 @@ impl<'process> std::fmt::Display for TileCloud<'process> {
 
         Ok(())
     }
-}
-
-#[derive(Error, Debug)]
-pub enum TileCloudError {
-    #[error("The cloud had unsatisfiable constraints. There are no possible tiles available.")]
-    NoTilesLeft,
 }
 
 impl<'process> TileCloud<'process> {
@@ -390,5 +390,41 @@ mod constraint_tests {
             .map(|tile| *pile.get(tile).expect("tile should be present"))
             .collect();
         assert_eq!(succ, verified_succ);
+    }
+
+    #[test]
+    fn impossible_constraints() {
+        let border = Tile::new(0, 0, 0, 0);
+        let bad_starter_tile = Tile::new(0, 0, 0xbad, 0);
+        let set_and_shift = Tile::new(10, 7, 1, 0);
+        let stay_set = Tile::new(1, 0, 1, 0);
+        let shift_and_repeat = Tile::new(0, 0, 10, 7);
+        // This program basically turns 0s into 1s and shifts right.
+        let pile = vec![
+            border,
+            bad_starter_tile,
+            set_and_shift,
+            stay_set,
+            shift_and_repeat,
+        ];
+
+        let pile = DominoPile::new(pile.clone().into_iter().map(Domino::pure).collect());
+
+        let init = vec![bad_starter_tile]
+            .iter()
+            .map(|tile| *pile.get(tile).expect("tile should be present"))
+            .collect();
+
+        let row = Row::new(
+            &pile,
+            pile.get(&border).expect("tile should be present"),
+            &init,
+        )
+        .expect("valid row");
+
+        match row.to_vec() {
+            Err(RowError::UnsatisfiableConstraints { context: _ }) => (),
+            x => panic!("Managed to satisy impossible constraints: {:?}", x),
+        };
     }
 }
