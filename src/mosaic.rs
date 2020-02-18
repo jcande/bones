@@ -244,12 +244,14 @@ impl Program {
     fn mk_seek(position: usize, direction: &wmach::SeekOp) -> Vec<Domino> {
         let mut set = Vec::new();
         // This must be UNIQUE per instruction in order to rule out annoying
-        // matching problems. We'll simply use the offset+1 for this instruction
+        // matching problems. We'll simply use the offset for this instruction
         // and be done with it. The idea here is that position MAY be "1" which
-        // we treat as a magic number. By adding to it, we at least have >=2
-        // which shouldn't ever occur in an east/west pip. This may change
-        // later but I hope not. Also, YOLO.
-        let bind: Pip = position + 1; // XXX shitty hack just to try shit out
+        // we treat as a magic number. This shouldn't ever occur in an
+        // east/west pip. This may change later but I hope not. Also, YOLO.
+        // TODO Make this into a variable that we increment after each use to
+        // ensure we never re-use a value.
+        let bind: Pip = position;
+        assert!(bind > 0);
 
         // Entry point tiles.
         {
@@ -401,7 +403,9 @@ impl compiler::Backend<Program> for wmach::Program {
         );
         set.push(border);
 
-        let unique_magic = 0x41414141;
+        // TODO Use the same mechanism that mk_seek's bind variable should also
+        // use. In this way it should be globally unique.
+        let unique_magic = std::usize::MAX;
         // first instruction starts at BASE_OFFSET because it makes my life easier here
         let start_pip = pip_from_components(BASE_OFFSET, 0);
         let initial = Tile::new(UNALLOCATED_PIP, unique_magic, start_pip, unique_magic);
@@ -474,6 +478,6 @@ mod tests {
 
     #[test]
     fn verify_alts() {
-        // TODO make InputAlts that do not share the same pips.
+        todo!("Make InputAlts that do not share the same pips.");
     }
 }

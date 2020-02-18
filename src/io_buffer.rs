@@ -146,8 +146,8 @@ mod tests {
     #[test]
     fn get_byte() -> std::io::Result<()> {
         let input_byte = 0xa5;
-        let mut input = FixedBuf::new(vec![input_byte]);
-        let mut output = FixedBuf::new(vec![]);
+        let input = FixedBuf::new(vec![input_byte]);
+        let output = FixedBuf::new(vec![]);
         let mut io = IoBuffer::with_io(input, output);
 
         for bit_offset in 0..8 {
@@ -163,8 +163,8 @@ mod tests {
     #[test]
     fn put_byte() -> std::io::Result<()> {
         let output_byte = 0x5a;
-        let mut input = FixedBuf::new(vec![]);
-        let mut output = FixedBuf::new(vec![output_byte]);
+        let input = FixedBuf::new(vec![]);
+        let output = FixedBuf::new(vec![output_byte]);
         let mut io = IoBuffer::with_io(input, output);
 
         for bit_offset in 0..8 {

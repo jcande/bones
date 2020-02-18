@@ -16,6 +16,7 @@ use crate::tiling::DominoPile;
 use crate::tiling::TileRef;
 
 #[derive(Debug)]
+#[cfg_attr(not(test), allow(dead_code))]
 pub enum TileCloudConf {
     Prefer(TileRef),
     Avoid(TileRef),

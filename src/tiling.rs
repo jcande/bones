@@ -155,12 +155,14 @@ impl<T: std::cmp::Eq> PartialOrd for SideEffects<T> {
 }
 
 impl<T> SideEffects<T> {
+    /*
     pub fn is_pure(&self) -> bool {
         match self {
             SideEffects::Pure(_) => true,
             _ => false,
         }
     }
+    */
 
     pub fn is_input(&self) -> bool {
         match self {
@@ -344,6 +346,7 @@ impl DominoPile {
         }
     }
 
+    #[cfg_attr(not(test), allow(dead_code))]
     pub fn get_tile_side_effects(&self, tile: &Tile) -> SideEffects<TileRef> {
         let tile_ref = self.as_ref[tile];
 
@@ -511,7 +514,6 @@ mod tile_tests {
         let pile = DominoPile::new(doms);
         let watermark = pile.impure_watermark;
 
-        let effect = pile.get_side_effects(&watermark);
         match pile.get_side_effects(&watermark) {
             SideEffects::Pure(_) => (),
             _ => panic!("At and above the watermark should be pure Tiles!"),

@@ -1,7 +1,6 @@
 use anyhow::Result;
 use thiserror::Error;
 
-use std::env;
 use std::path::Path;
 use std::str::FromStr;
 
@@ -29,6 +28,9 @@ pub enum BoneError {
 }
 
 fn go(mosaic: &mut mosaic::Program) -> Result<()> {
+    println!("{}", mosaic);
+    println!("{:?}", mosaic);
+
     loop {
         mosaic.step()?;
     }
@@ -74,8 +76,6 @@ fn main() -> Result<()> {
     .compile()?;
 
     go(&mut mosaic)?;
-
-    println!("\n\n{}", mosaic);
 
     Ok(())
 }
