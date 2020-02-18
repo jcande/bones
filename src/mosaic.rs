@@ -502,7 +502,9 @@ mod tests {
         let tile = Tile::new(1, 1, 0, 1);
         let alt0 = Tile::new(1, 0xbad, 0, 1);
         let alt1 = Tile::new(1, 1, 0, 1);
-        let set = vec![Domino::pure(border), Domino::input(tile, [alt0, alt1])].into_iter().collect();
+        let set = vec![Domino::pure(border), Domino::input(tile, [alt0, alt1])]
+            .into_iter()
+            .collect();
 
         match Program::new(set, border, vec![border]) {
             Err(MosaicError::InvalidInputAlts { domino: _ }) => (),
@@ -539,7 +541,10 @@ mod tests {
         let border = Tile::new(0, 0, 0, 0);
         let left = Tile::new(0, 1, 0, 0);
         let right = Tile::new(0, 0xbad, 0, 1);
-        let set = vec![border, left, right].into_iter().map(Domino::pure).collect();
+        let set = vec![border, left, right]
+            .into_iter()
+            .map(Domino::pure)
+            .collect();
 
         match Program::new(set, border, vec![left, right]) {
             Err(MosaicError::InvalidInitialTile { tile: _ }) => (),

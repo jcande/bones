@@ -87,7 +87,11 @@ impl<'process> TileCloud<'process> {
     }
 
     // Orientation is where the other tilecloud is in relation to self
-    pub fn constrain(&mut self, other: &TileCloud, orientation: &Orientation) -> Result<(), TileCloudError> {
+    pub fn constrain(
+        &mut self,
+        other: &TileCloud,
+        orientation: &Orientation,
+    ) -> Result<(), TileCloudError> {
         assert!(
             *orientation != Orientation::North && *orientation != Orientation::South,
             "north/south constraints don't make sense in this context"
@@ -241,10 +245,11 @@ impl<'process> Row<'process> {
                 let pred = &earlier[0];
                 let cloud = &mut later[0];
 
-                cloud.constrain(pred, &Orientation::West)
-                    .map_err(|_| RowError::UnsatisfiableConstraints {
+                cloud.constrain(pred, &Orientation::West).map_err(|_| {
+                    RowError::UnsatisfiableConstraints {
                         context: format!("western: cloud {}: {}, other: {}", i, cloud, pred),
-                    })?;
+                    }
+                })?;
             }
 
             if i < last {
@@ -256,10 +261,11 @@ impl<'process> Row<'process> {
                 let (earlier, later) = self.row[i..i + 2].split_at_mut(1);
                 let cloud = &mut earlier[0];
                 let succ = &later[0];
-                cloud.constrain(succ, &Orientation::East)
-                    .map_err(|_| RowError::UnsatisfiableConstraints {
+                cloud.constrain(succ, &Orientation::East).map_err(|_| {
+                    RowError::UnsatisfiableConstraints {
                         context: format!("eastern: cloud {}: {}, other: {}", i, cloud, succ),
-                    })?;
+                    }
+                })?;
             }
         }
 
@@ -344,7 +350,8 @@ mod constraint_tests {
             .collect();
         let neighbor = TileCloud::new(&pile, initial, TileCloudConf::Whatever);
 
-        everything.constrain(&neighbor, &Orientation::East)
+        everything
+            .constrain(&neighbor, &Orientation::East)
             .expect("There should be one tile that satisfies the neighbor constraint.");
 
         let tile_ref = everything.select().expect("there should be a valid tile");

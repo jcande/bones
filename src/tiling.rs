@@ -155,14 +155,12 @@ impl<T: std::cmp::Eq> PartialOrd for SideEffects<T> {
 }
 
 impl<T> SideEffects<T> {
-    /*
     pub fn is_pure(&self) -> bool {
         match self {
             SideEffects::Pure(_) => true,
             _ => false,
         }
     }
-    */
 
     pub fn is_input(&self) -> bool {
         match self {
@@ -252,10 +250,10 @@ impl DominoPile {
 
         // If a reference is strictly less than watermark then it must be an IO
         // related Tile. This property is guaranteed by the above sort.
-        let watermark: TileRef = dominoes.iter().fold(0, |i, x| match x.side_effect {
-            SideEffects::Pure(_) => i,
-            _ => i + 1,
-        });
+        let watermark: TileRef =
+            dominoes
+                .iter()
+                .fold(0, |i, x| if x.side_effect.is_pure() { i } else { i + 1 });
 
         // Iterate over all of the In dominoes, pulling out their inner Tiles
         // so that we can add them to the overall set.
