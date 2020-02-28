@@ -21,6 +21,8 @@ Bail:
 }
 */
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-label"
 void
 Program(
     Environment *Env
@@ -32,3 +34,4 @@ Bail:
     (void) 0;
 //    __builtin_trap();
 }
+#pragma clang diagnostic pop

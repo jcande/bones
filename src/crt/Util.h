@@ -1,5 +1,4 @@
-#ifndef UTIL_H
-#define UTIL_H
+#pragma once
 
 #include <stdint.h>
 #include <assert.h>
@@ -99,5 +98,3 @@ hexdump_only(
     void *addr,
     int len
     );
-
-#endif // UTIL_H
