@@ -5,6 +5,9 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[profile.release]
+lto = true
+
 [lib]
 crate-type = ["cdylib", "rlib"]
 
@@ -13,5 +16,12 @@ wasm-bindgen = "0.2"
 
 [dependencies.web-sys]
 version = "0.3.55"
-features = ["console", "Window", "Document", "Element", "Node",
-    "HtmlCanvasElement", "HtmlImageElement", "CanvasRenderingContext2d"]
+features = [ "CanvasRenderingContext2d"
+           , "console"
+           , "Document"
+           , "Element"
+           , "HtmlCanvasElement"
+           , "HtmlImageElement"
+           , "Node"
+           , "Window"
+           ]
