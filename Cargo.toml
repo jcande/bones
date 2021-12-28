@@ -23,5 +23,6 @@ features = [ "CanvasRenderingContext2d"
            , "HtmlCanvasElement"
            , "HtmlImageElement"
            , "Node"
+           , "Path2d"
            , "Window"
            ]
