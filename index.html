@@ -2,9 +2,25 @@
 <html>
   <head>
     <meta charset="utf-8" />
+    <!-- this is mobile related magic -->
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>domino parlor</title>
+    <!-- this is probably misguided. I want the dominos to take up the full screen and this does that. -->
+    <style type="text/css">
+      body {
+          height: 100vh;
+          width: 100vw;
+      }
+      #domino-div {
+          height: 100vh;
+          width: 100vw;
+      }
+    </style>
   </head>
   <body>
-    <canvas id="domino" width="3000" height="3000">Looks like you won't be seeing some cool dominos.</canvas>
+    <link data-trunk rel="rust" href="Cargo.toml" data-wasm-opt="z" data-lib="canvas_experiment" />
+    <div id="domino-div">
+      <canvas id="domino" border="border:1px solid #000000;">Looks like you won't be seeing some cool dominos.</canvas>
+    </div>
   </body>
 </html>
