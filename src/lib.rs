@@ -37,13 +37,12 @@ impl Model {
     }
 }
 
-// This looks to be a premature optimization. If we want to go down this down it may be interesting
-// but let's punt on it for now.
-/*
-trait TileSubview {
-    fn tile_range(&mut self, row_start: usize, row_end: usize, col_start: usize, col_end: usize) -> Vec<()>;
+#[derive(Debug)]
+enum PointerState {
+    Down,
+    Up,
+    Move,
 }
-*/
 struct Renderer {
     model: Model,
     dispatch: Option<Rc<Dispatch>>,   // take an immutable pointer to the dispatcher to keep it alive
@@ -63,11 +62,22 @@ impl Renderer {
         log("callback_handler");
         self.model.data = data;
     }
+
+    pub fn update_offset(&mut self, x: i32, y: i32, state: PointerState) {
+        log(&format!("offset: {}, {}, {:?}", x, y, state));
+    }
+
+    pub fn zoom(&mut self, width: i32, height: i32, delta: f64) {
+        log(&format!("zoom: {}, {}, {}", width, height, delta));
+    }
 }
 
 struct Dispatch {
     resize_listener: EventListener,
-    drag_listener: EventListener,
+    pointerdown_listener: EventListener,
+    pointerup_listener: EventListener,
+    pointerout_listener: EventListener,
+    //pointermove_listener: EventListener,
     wheel_listener: EventListener,
 
     renderer: Rc<RefCell<Renderer>>,
@@ -81,19 +91,57 @@ impl Dispatch {
         let target = web_sys::EventTarget::from(element.clone());
         let renderer_clone = Rc::clone(&renderer);
         let wheel_listener = EventListener::new(&target, "wheel", move |event: &web_sys::Event| {
-            //let event: web_sys::WheelEvent = *event.into();
-            log(&format!("wheel closure: {:?}", event));
+            let wheel = event.clone()
+                .dyn_into::<web_sys::WheelEvent>()
+                .expect("The event passed to wheel callback doesn't match");
+
             renderer_clone.try_borrow_mut()
-                .expect("you better believe it")
-                .callback_handler(100);
+                .expect("Unable to borrow renderer for wheel event")
+                .zoom(wheel.client_x(), wheel.client_y(), wheel.delta_y());
+        });
+
+        let renderer_clone = Rc::clone(&renderer);
+        let pointerdown_listener = EventListener::new(&target, "pointerdown", move |event: &web_sys::Event| {
+            let pointer = event.clone()
+                .dyn_into::<web_sys::PointerEvent>()
+                .expect("The event passed to pointerdown callback doesn't match");
+
+            renderer_clone.try_borrow_mut()
+                .expect("Unable to borrow renderer for pointerdown event")
+                .update_offset(pointer.client_x(), pointer.client_y(), PointerState::Down);
         });
         let renderer_clone = Rc::clone(&renderer);
-        let drag_listener = EventListener::new(&target, "drag", move |_event: &web_sys::Event| {
-            log("drag closure");
+        let pointerup_listener = EventListener::new(&target, "pointerup", move |event: &web_sys::Event| {
+            let pointer = event.clone()
+                .dyn_into::<web_sys::PointerEvent>()
+                .expect("The event passed to pointerup callback doesn't match");
+
             renderer_clone.try_borrow_mut()
-                .expect("you better believe it")
-                .callback_handler(100);
+                .expect("Unable to borrow renderer for pointerup event")
+                .update_offset(pointer.client_x(), pointer.client_y(), PointerState::Up);
         });
+        let renderer_clone = Rc::clone(&renderer);
+        let pointerout_listener = EventListener::new(&target, "pointerout", move |event: &web_sys::Event| {
+            let pointer = event.clone()
+                .dyn_into::<web_sys::PointerEvent>()
+                .expect("The event passed to pointerout callback doesn't match");
+
+            // We treat pointerout the same as if the user released it
+            renderer_clone.try_borrow_mut()
+                .expect("Unable to borrow renderer for pointerout event")
+                .update_offset(pointer.client_x(), pointer.client_y(), PointerState::Up);
+        });
+        let renderer_clone = Rc::clone(&renderer);
+        let _pointermove_listener = EventListener::new(&target, "pointermove", move |event: &web_sys::Event| {
+            let pointer = event.clone()
+                .dyn_into::<web_sys::PointerEvent>()
+                .expect("The event passed to pointermove callback doesn't match");
+
+            renderer_clone.try_borrow_mut()
+                .expect("Unable to borrow renderer for pointermove event")
+                .update_offset(pointer.client_x(), pointer.client_y(), PointerState::Move);
+        });
+
         let renderer_clone = Rc::clone(&renderer);
         let resize_listener = EventListener::new(&target, "resize", move |_event: &web_sys::Event| {
             log("resize closure");
@@ -104,7 +152,12 @@ impl Dispatch {
 
         let obj = Rc::new(Self {
             resize_listener: resize_listener,
-            drag_listener: drag_listener,
+
+            pointerdown_listener: pointerdown_listener,
+            pointerup_listener: pointerup_listener,
+            pointerout_listener: pointerout_listener,
+            //pointermove_listener: pointermove_listener,
+
             wheel_listener: wheel_listener,
             renderer: renderer,
         });
@@ -236,8 +289,7 @@ pub fn js_main() -> Result<(), JsValue> {
 
     {
         /*
-        container.set_onresize();       // "resize"
-        container.set_ondrag();         // "drag"
+        window.set_onresize();       // "resize"
         container.set_onwheel();        // "wheel"
         */
         // the router/dispatcher would do this bit and setup callbacks directly into Renderer. Not
