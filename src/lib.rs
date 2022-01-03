@@ -10,6 +10,121 @@
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use gloo::events;
+use crate::events::EventListener;
+use std::rc::Rc;
+use std::cell::RefCell;
+
+#[wasm_bindgen]
+extern "C" {
+    // Use `js_namespace` here to bind `console.log(..)` instead of just
+    // `log(..)`
+    #[wasm_bindgen(js_namespace = console)]
+    fn log(s: &str);
+}
+#[wasm_bindgen(module = "/index.js")]
+extern {
+    fn hosted_in_js();
+}
+
+struct Model {
+    pub data: usize,
+}
+impl Model {
+    pub fn new() -> Self {
+        Self {
+            data: 0,
+        }
+    }
+}
+
+// This looks to be a premature optimization. If we want to go down this down it may be interesting
+// but let's punt on it for now.
+/*
+trait TileSubview {
+    fn tile_range(&mut self, row_start: usize, row_end: usize, col_start: usize, col_end: usize) -> Vec<()>;
+}
+*/
+struct Renderer {
+    model: Model,
+    dispatch: Option<Rc<Dispatch>>,   // take an immutable pointer to the dispatcher to keep it alive
+}
+impl Renderer {
+    pub fn new() -> Self {
+        Self {
+            model: Model::new(),
+            dispatch: None,
+        }
+    }
+    pub fn initialize(&mut self, dispatch: Rc<Dispatch>) {
+        self.dispatch = Some(dispatch);
+    }
+
+    pub fn callback_handler(&mut self, data: usize) {
+        log("callback_handler");
+        self.model.data = data;
+    }
+}
+
+struct Dispatch {
+    resize_listener: EventListener,
+    drag_listener: EventListener,
+    wheel_listener: EventListener,
+
+    renderer: Rc<RefCell<Renderer>>,
+}
+impl Dispatch {
+    pub fn new(element: &web_sys::HtmlElement) -> Rc<Self> {
+        // First construct the Dispatch object with uninitialized receivers (e.g., renderer).
+        let renderer = Rc::new(RefCell::new(Renderer::new()));
+
+        // Construct the various callbacks that we're interested in.
+        let target = web_sys::EventTarget::from(element.clone());
+        let renderer_clone = Rc::clone(&renderer);
+        let wheel_listener = EventListener::new(&target, "wheel", move |event: &web_sys::Event| {
+            //let event: web_sys::WheelEvent = *event.into();
+            log(&format!("wheel closure: {:?}", event));
+            renderer_clone.try_borrow_mut()
+                .expect("you better believe it")
+                .callback_handler(100);
+        });
+        let renderer_clone = Rc::clone(&renderer);
+        let drag_listener = EventListener::new(&target, "drag", move |_event: &web_sys::Event| {
+            log("drag closure");
+            renderer_clone.try_borrow_mut()
+                .expect("you better believe it")
+                .callback_handler(100);
+        });
+        let renderer_clone = Rc::clone(&renderer);
+        let resize_listener = EventListener::new(&target, "resize", move |_event: &web_sys::Event| {
+            log("resize closure");
+            renderer_clone.try_borrow_mut()
+                .expect("you better believe it")
+                .callback_handler(100);
+        });
+
+        let obj = Rc::new(Self {
+            resize_listener: resize_listener,
+            drag_listener: drag_listener,
+            wheel_listener: wheel_listener,
+            renderer: renderer,
+        });
+
+        // Now initialize the receivers.
+        {
+            let mut r = obj.renderer
+                .borrow_mut();
+
+            r.initialize(Rc::clone(&obj));
+        }
+
+        obj
+    }
+}
+impl Drop for Dispatch {
+    fn drop(&mut self) {
+        log("calling drop on Dispatch");
+    }
+}
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Direction {
@@ -99,17 +214,8 @@ fn draw_square(ctx: &web_sys::CanvasRenderingContext2d, row: usize, col: usize) 
     ctx.restore();
 }
 
-/**/
-#[wasm_bindgen(module = "/index.js")]
-extern {
-    fn hosted_in_js();
-}
-/**/
-
 #[wasm_bindgen(start)]
 pub fn js_main() -> Result<(), JsValue> {
-    hosted_in_js();
-
     let document = web_sys::window()
         .ok_or(JsValue::from_str("no global window exists"))?
         .document()
@@ -128,11 +234,16 @@ pub fn js_main() -> Result<(), JsValue> {
     canvas.set_width(container.offset_width().try_into().expect("someone hates you"));
     canvas.set_height(container.offset_height().try_into().expect("someone hates you"));
 
-    /*
-    container.set_onresize();
-    container.set_ondrag();
-    container.set_onwheel();
-    */
+    {
+        /*
+        container.set_onresize();       // "resize"
+        container.set_ondrag();         // "drag"
+        container.set_onwheel();        // "wheel"
+        */
+        // the router/dispatcher would do this bit and setup callbacks directly into Renderer. Not
+        // dynamic/modular but that's fine as we're not writing a framework.
+        let _what = Dispatch::new(&container);
+    }
 
     let context = canvas
         .get_context("2d")?
@@ -149,12 +260,10 @@ pub fn js_main() -> Result<(), JsValue> {
     let vertical = [RED, BLUE];
     for row in 0..25 {
         for col in 0..25 {
-            let _gradient = (row + col) as u32;
-            let gradient = 0;
-            draw_triangle(&context, row, col, Direction::North, gradient + vertical[(col + 0) % 2]);
-            draw_triangle(&context, row, col, Direction::East, gradient + horizontal[(row + 0) % 2]);
-            draw_triangle(&context, row, col, Direction::South, gradient + vertical[(col + 1) % 2]);
-            draw_triangle(&context, row, col, Direction::West, gradient + horizontal[(row + 1) % 2]);
+            draw_triangle(&context, row, col, Direction::North, vertical[(col + 0) % 2]);
+            draw_triangle(&context, row, col, Direction::East, horizontal[(row + 0) % 2]);
+            draw_triangle(&context, row, col, Direction::South, vertical[(col + 1) % 2]);
+            draw_triangle(&context, row, col, Direction::West, horizontal[(row + 1) % 2]);
             draw_square(&context, row, col);
         }
     }
