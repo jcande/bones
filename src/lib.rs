@@ -133,7 +133,9 @@ enum PointerState {
 }
 struct Renderer {
     model: Model,
+
     zoom: f64,
+    // cursor: Option<(x, y)>
 
     dispatch: Option<Rc<Dispatch>>,   // take an immutable pointer to the dispatcher to keep it alive
 
@@ -149,6 +151,7 @@ impl Renderer {
         context.set_image_smoothing_enabled(false);
         Self {
             model: Model::new(),
+
             zoom: 1.0,
 
             dispatch: None,
@@ -279,6 +282,12 @@ impl Renderer {
         log(&format!("zoom: {}, {}, {} => {}", x, y, delta, self.zoom));
         self.render();
     }
+
+    pub fn update_dimensions(&mut self, width: u32, height: u32) {
+        self.canvas.set_width(width);
+        self.canvas.set_height(height);
+        self.render();
+    }
 }
 
 struct Dispatch {
@@ -287,16 +296,20 @@ struct Dispatch {
     renderer: Rc<RefCell<Renderer>>,
 }
 impl Dispatch {
-    pub fn new(canvas: web_sys::HtmlCanvasElement, context: web_sys::CanvasRenderingContext2d) -> Rc<Self> {
+    pub fn new(window: web_sys::Window, container: web_sys::HtmlElement, canvas: web_sys::HtmlCanvasElement, context: web_sys::CanvasRenderingContext2d) -> Rc<Self> {
         // First construct the Dispatch object with uninitialized receivers (e.g., renderer).
         let renderer = Rc::new(RefCell::new(Renderer::new(canvas.clone(), context)));
 
         // Construct the various callbacks that we're interested in.
         let mut listeners = Vec::new();
-        let target = web_sys::EventTarget::from(canvas.clone());
+        let canvas_target = web_sys::EventTarget::from(canvas);
+        let window_target = web_sys::EventTarget::from(window);
 
         let renderer_clone = Rc::clone(&renderer);
-        listeners.push(EventListener::new_with_options(&target, "wheel", EventListenerOptions::enable_prevent_default(), move |event: &web_sys::Event| {
+        listeners.push(EventListener::new_with_options(&canvas_target,
+                                                       "wheel",
+                                                       EventListenerOptions::enable_prevent_default(),
+                                                       move |event: &web_sys::Event| {
             let wheel = event.clone()
                 .dyn_into::<web_sys::WheelEvent>()
                 .expect("The event passed to wheel callback doesn't match");
@@ -309,7 +322,7 @@ impl Dispatch {
         }));
 
         let renderer_clone = Rc::clone(&renderer);
-        listeners.push(EventListener::new(&target, "pointerdown", move |event: &web_sys::Event| {
+        listeners.push(EventListener::new(&canvas_target, "pointerdown", move |event: &web_sys::Event| {
             let pointer = event.clone()
                 .dyn_into::<web_sys::PointerEvent>()
                 .expect("The event passed to pointerdown callback doesn't match");
@@ -319,7 +332,7 @@ impl Dispatch {
                 .update_offset(pointer.client_x(), pointer.client_y(), PointerState::Down);
         }));
         let renderer_clone = Rc::clone(&renderer);
-        listeners.push(EventListener::new(&target, "pointerup", move |event: &web_sys::Event| {
+        listeners.push(EventListener::new(&canvas_target, "pointerup", move |event: &web_sys::Event| {
             let pointer = event.clone()
                 .dyn_into::<web_sys::PointerEvent>()
                 .expect("The event passed to pointerup callback doesn't match");
@@ -329,7 +342,7 @@ impl Dispatch {
                 .update_offset(pointer.client_x(), pointer.client_y(), PointerState::Up);
         }));
         let renderer_clone = Rc::clone(&renderer);
-        listeners.push(EventListener::new(&target, "pointerout", move |event: &web_sys::Event| {
+        listeners.push(EventListener::new(&canvas_target, "pointerout", move |event: &web_sys::Event| {
             let pointer = event.clone()
                 .dyn_into::<web_sys::PointerEvent>()
                 .expect("The event passed to pointerout callback doesn't match");
@@ -341,7 +354,7 @@ impl Dispatch {
         }));
 /*
         let renderer_clone = Rc::clone(&renderer);
-        listeners.push(EventListener::new(&target, "pointermove", move |event: &web_sys::Event| {
+        listeners.push(EventListener::new(&canvas_target, "pointermove", move |event: &web_sys::Event| {
             let pointer = event.clone()
                 .dyn_into::<web_sys::PointerEvent>()
                 .expect("The event passed to pointermove callback doesn't match");
@@ -352,13 +365,22 @@ impl Dispatch {
         }));
 */
 
-        // XXX this doesn't work. I think the target needs to be the window or something.
         let renderer_clone = Rc::clone(&renderer);
-        listeners.push(EventListener::new(&target, "resize", move |_event: &web_sys::Event| {
-            log("resize closure");
-            renderer_clone.try_borrow_mut()
-                .expect("you better believe it")
-                .callback_handler(100);
+        listeners.push(EventListener::new(&window_target, "resize", move |event: &web_sys::Event| {
+            // I wanted to use `?` but couldn't change the closure interface. The inner-closure's
+            // return is ignored.
+            let _ = || -> Result<(), ()> {
+                let width = container.offset_width()
+                    .try_into()
+                    .or(Err(()))?;
+                let height = container.offset_height()
+                    .try_into()
+                    .or(Err(()))?;
+                renderer_clone.try_borrow_mut()
+                    .expect("Unable to borrow renderer for resize event")
+                    .update_dimensions(width, height);
+                Ok(())
+            }();
         }));
 
         let obj = Rc::new(Self {
@@ -417,7 +439,7 @@ pub fn js_main() -> Result<(), JsValue> {
         .ok_or(JsValue::from_str("unable to retrieve 2d context from domino canvas"))?
         .dyn_into::<web_sys::CanvasRenderingContext2d>()?;
 
-    let _dispatch = Dispatch::new(canvas, context);
+    let _dispatch = Dispatch::new(window, container, canvas, context);
 
     Ok(())
 }
