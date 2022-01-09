@@ -248,14 +248,9 @@ impl ViewPort {
         let width = width as i32;
         let height = height as i32;
 
-        let old_width = self.width;
-        let old_height = self.height;
-
         self.width = width;
         self.height = height;
 
-        // TODO this flickers a lot and doesn't render half the time
-        //(old_width < width || old_height < height)
         true
     }
 
@@ -309,7 +304,7 @@ impl ViewPort {
                     _ => PointerState::Released,
                 }
             },
-            PointerState::Leased(old_xy) => {
+            PointerState::Leased(_) => {
                 match event {
                     PointerEvent::Down(xy) | PointerEvent::Move(xy) => PointerState::Leased(xy),
                     _ => PointerState::Released,
@@ -486,13 +481,19 @@ impl Renderer {
                                    self.canvas.width().into(),
                                    self.canvas.height().into());
 
+        /*
         const ORANGE: u32 = 0xffa500;
         const GREEN: u32 = 0x008000;
         const BLUE: u32 = 0x0000ff;
         const RED: u32 = 0xff0000;
-        const PURPLE: u32 = 0x800080;
-        const PINK: u32 = 0xee82ee;
         let colors = [RED, BLUE, GREEN, ORANGE];
+        */
+
+        const TURQUOISE: u32 = 0x00c1ae;
+        const PURPLE: u32 = 0x7320af;
+        const ORANGE: u32 = 0xfa6211;
+        const YELLOW: u32 = 0xfdee00;
+        let colors = [TURQUOISE, ORANGE, PURPLE, YELLOW];
 
         let ((row_start, row_end), (col_start, col_end)) = self.view.scope();
 
@@ -500,7 +501,7 @@ impl Renderer {
             .expect("why couldn't we compute? Out of memory?");
 
         // Second, display the tiles
-        for enriched_tile in self.model.tile_range(range_handle) { // bullshit range just to get some fake data
+        for enriched_tile in self.model.tile_range(range_handle) {
             self.draw_triangle(enriched_tile.coord.0, enriched_tile.coord.1, Direction::North, colors[enriched_tile.tile.north]);
             self.draw_triangle(enriched_tile.coord.0, enriched_tile.coord.1, Direction::East, colors[enriched_tile.tile.east]);
             self.draw_triangle(enriched_tile.coord.0, enriched_tile.coord.1, Direction::South, colors[enriched_tile.tile.south]);
@@ -608,7 +609,7 @@ impl Dispatch {
         }));
 
         let renderer_clone = Rc::clone(&renderer);
-        listeners.push(EventListener::new(&window_target, "resize", move |event: &web_sys::Event| {
+        listeners.push(EventListener::new(&window_target, "resize", move |_event: &web_sys::Event| {
             // I wanted to use `?` but couldn't change the closure interface. The inner-closure's
             // return is ignored.
             let _ = || -> Result<(), ()> {
