@@ -17,6 +17,7 @@ use crate::events::EventListenerOptions;
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::ops::AddAssign;
+use std::ops::SubAssign;
 extern crate console_error_panic_hook;
 
 // A macro to provide `println!(..)`-style syntax for `console.log` logging.
@@ -24,6 +25,10 @@ macro_rules! log {
     ( $( $t:tt )* ) => {
         web_sys::console::log_1(&format!( $( $t )* ).into());
     }
+}
+#[wasm_bindgen]
+extern {
+    pub fn alert(s: &str);
 }
 
 // These are defined in tiling.rs and we just copy them here to get this working
@@ -56,9 +61,6 @@ impl<'a> Iterator for TileView<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         let coord = (self.x, self.y);
-        let tile = self.model
-            .get_tile(coord.0, coord.1)
-            .expect("We should have computed all tiles in the given view before handing out an iterator to them");
 
         // Check to see if we're outside the bounds. If that's the case, there are no more tiles
         // remaining in the iterator.
@@ -74,6 +76,10 @@ impl<'a> Iterator for TileView<'a> {
 
             self.y = self.y + 1;
         }
+
+        let tile = self.model
+            .get_tile(coord.0, coord.1)
+            .expect("We should have computed all tiles in the given view before handing out an iterator to them");
 
         Some(DapperTile {
             coord: coord,
@@ -171,6 +177,14 @@ impl AddAssign for Coord {
         };
     }
 }
+impl SubAssign for Coord {
+    fn sub_assign(&mut self, other: Self) {
+        *self = Self {
+            x: self.x - other.x,
+            y: self.y - other.y,
+        };
+    }
+}
 #[derive(PartialEq, Clone, Debug)]
 enum PointerState {
     Released,
@@ -227,7 +241,7 @@ impl ViewPort {
     }
 
     fn offset(&self) -> Coord {
-        Coord::new(self.offset.x % self.width, self.offset.y % self.height)
+        Coord::new(self.offset.x, self.offset.y)
     }
 
     fn update_dimensions(&mut self, width: u32, height: u32) -> bool {
@@ -309,7 +323,6 @@ impl ViewPort {
         self.cursor = new_cursor;
         self.offset += delta.ok_or(())?;
 
-        //log!("new offset: {}, {}", self.offset.x, self.offset.y);
         Ok(())
     }
 
@@ -317,8 +330,6 @@ impl ViewPort {
         //let row_start = Renderer::TILE_WIDTH * self.zoom + self.offset.x as f64;
         let width = self.width as f64;
         let height = self.height as f64;
-
-        log!("zoom: {}", self.zoom);
 
         // width
 
@@ -332,7 +343,7 @@ impl ViewPort {
         let view_width_capacity = (width / tile_width).ceil() as i32 + split_visible;
 
         let row_start = ((-self.offset.x as f64) / tile_width).floor() as i32;
-        log!("width capacity: {}, row: {}", view_width_capacity, row_start);
+        //log!("scope: width capacity: {}, row: [{}, {}], offset: {}", view_width_capacity, row_start, row_start + view_width_capacity, self.offset.x);
 
 
         // height
@@ -347,7 +358,8 @@ impl ViewPort {
         let view_height_capacity = (height / tile_height).ceil() as i32 + split_visible;
 
         let col_start = ((-self.offset.y as f64) / tile_height).floor() as i32;
-        log!("height capacity: {}, col: {}", view_height_capacity, col_start);
+        //log!("scope: height capacity: {}, col: [{}, {}], offset: {}", view_height_capacity, col_start, col_start + view_height_capacity, self.offset.y);
+
         // calculate how many tiles can fit in our width and height
         //  maybe: x_count = ceil((width - (offset % tile_width)) / tile_width) + same thing but
         //  with % instead of /
@@ -478,6 +490,8 @@ impl Renderer {
         const GREEN: u32 = 0x008000;
         const BLUE: u32 = 0x0000ff;
         const RED: u32 = 0xff0000;
+        const PURPLE: u32 = 0x800080;
+        const PINK: u32 = 0xee82ee;
         let colors = [RED, BLUE, GREEN, ORANGE];
 
         let ((row_start, row_end), (col_start, col_end)) = self.view.scope();
@@ -487,14 +501,13 @@ impl Renderer {
 
         // Second, display the tiles
         for enriched_tile in self.model.tile_range(range_handle) { // bullshit range just to get some fake data
-            //log!("pips (nesw): {}, {}, {}, {}", enriched_tile.tile.north, enriched_tile.tile.east, enriched_tile.tile.south, enriched_tile.tile.west);
             self.draw_triangle(enriched_tile.coord.0, enriched_tile.coord.1, Direction::North, colors[enriched_tile.tile.north]);
             self.draw_triangle(enriched_tile.coord.0, enriched_tile.coord.1, Direction::East, colors[enriched_tile.tile.east]);
             self.draw_triangle(enriched_tile.coord.0, enriched_tile.coord.1, Direction::South, colors[enriched_tile.tile.south]);
             self.draw_triangle(enriched_tile.coord.0, enriched_tile.coord.1, Direction::West, colors[enriched_tile.tile.west]);
 
             // if the tile is the tape head, draw a square around it
-            if enriched_tile.coord.0 == 2 && enriched_tile.coord.1 == 3 {
+            if enriched_tile.coord.0 == 0 && enriched_tile.coord.1 == 0 {
                 self.draw_square(enriched_tile.coord.0, enriched_tile.coord.1);
             }
         }
