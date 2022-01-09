@@ -266,7 +266,7 @@ impl ViewPort {
         let width = self.width as f64;
         let height = self.height as f64;
 
-        let new_zoom = self.zoom - (delta * 0.001);
+        let new_zoom = delta.mul_add(-0.001, self.zoom).clamp(0.08, 4.0);
 
 
         // TODO figure out zoom-to-point logic
