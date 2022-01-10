@@ -3,8 +3,8 @@
 #include "IoBuffer.h"
 #include "Memory.h"
 
-#define TOTAL_BITS  0x1000
-#define MEMORY_SIZE (TOTAL_BITS / sizeof(Cell))
+#define TOTAL_BITS  0x10000000
+#define MEMORY_SIZE (TOTAL_BITS / (BITSIZE(Cell)))
 
 typedef struct _Environment {
     IoBuffer io;

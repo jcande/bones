@@ -1,6 +1,6 @@
 CC := clang
-#CFLAGS := -g -ggdb -O0 -std=gnu99 -W -Wall -Wextra -pedantic -pedantic-errors
-CFLAGS += -g -ggdb -O0 -std=c11 -W -Wall -Wextra -pedantic
+#CFLAGS += -g -ggdb -O0 -std=c11 -W -Wall -Wextra -pedantic
+CFLAGS += -Os -std=c11 -W -Wall -Wextra -pedantic
 
 TARGET := wm
 

@@ -43,10 +43,11 @@ enhex(
 
 int
 all_zero(
-    unsigned char *buf,
+    void *Buf,
     int len
     )
 {
+    unsigned char *buf = (unsigned char *) Buf;
     int i, isNonZero = 0;
     for (i = 0; i < len; ++i) {
         isNonZero |= buf[i];
@@ -71,7 +72,7 @@ hexdump(
     unsigned char *pc = (unsigned char*)addr;
 
     if (desc != NULL) {
-        TagPrint("%s:\n", desc);
+        WmPrint("%s:\n", desc);
     }
 
     beenZero = 0;
@@ -92,15 +93,15 @@ hexdump(
         if (!beenZero) {
             hexed[hex_len] = '\0';
             bytes[byte_len] = '\0';
-            TagPrint("%04x  %-*s  %*s\n", i, hex_len, hexed, byte_len, bytes);
+            WmPrint("%04x  %-*s  %*s\n", i, hex_len, hexed, byte_len, bytes);
 
             if (isZero) {
                 beenZero = 1;
-                TagPrint("*\n");
+                WmPrint("*\n");
             }
         }
     }
-    TagPrint("%04x\n", i);
+    WmPrint("%04x\n", i);
 }
 
 void
@@ -120,7 +121,7 @@ hexdump_only(
     unsigned char *pc = (unsigned char*)addr;
 
     if (desc != NULL) {
-        TagPrint("%s:\n", desc);
+        WmPrint("%s:\n", desc);
     }
 
     for (i = 0; i < len; i += byte_len) {
@@ -131,7 +132,17 @@ hexdump_only(
         enhex(hexed, hex_len, &pc[i], byte_len);
         hexed[hex_len] = '\0';
 
-        TagPrint("%04x  %-*s\n", i, hex_len, hexed);
+        WmPrint("%04x  %-*s\n", i, hex_len, hexed);
     }
-    TagPrint("%04x\n", i);
+    WmPrint("%04x\n", i);
+}
+
+inline
+void
+Breakpoint(
+    void
+    )
+{
+    __builtin_debugtrap();
+    //__asm__("int $3");
 }

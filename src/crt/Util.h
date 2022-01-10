@@ -79,11 +79,17 @@ typedef int32_t     STATUS;
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
 
-#define TagPrint(fmt, ...)      fprintf(stderr, fmt, ##__VA_ARGS__)
-#define TagWarn(fmt, ...)       warn ("%s: " fmt, __FUNCTION__, ##__VA_ARGS__)
-#define TagWarnx(fmt, ...)      warnx("%s: " fmt, __FUNCTION__, ##__VA_ARGS__)
+#define WmPrint(fmt, ...)      fprintf(stderr, fmt, ##__VA_ARGS__)
+#define WmWarn(fmt, ...)       warn ("%s: " fmt, __FUNCTION__, ##__VA_ARGS__)
+#define WmWarnx(fmt, ...)      warnx("%s: " fmt, __FUNCTION__, ##__VA_ARGS__)
 
 #pragma clang diagnostic pop
+
+int
+all_zero(
+    void *buf,
+    int len
+    );
 
 void
 hexdump(
@@ -97,4 +103,9 @@ hexdump_only(
     char *desc,
     void *addr,
     int len
+    );
+
+void
+Breakpoint(
+    void
     );

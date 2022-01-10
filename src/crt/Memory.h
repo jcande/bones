@@ -5,11 +5,11 @@
 
 #include "IoBuffer.h"
 
+#define BITSIZE(t)      (8 * sizeof(t))
 typedef uint64_t Cell;
 
 typedef struct _CacheState {
     bool dirty;
-    bool valid;
 
     uint64_t head;
     Cell value;
@@ -29,6 +29,11 @@ MemInit(
     Memory *State,
     Cell *RawMemory,
     uint64_t RawMemorySize
+    );
+
+void
+MemAccess(
+    Memory *State
     );
 
 void

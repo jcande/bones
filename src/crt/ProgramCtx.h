@@ -4,8 +4,8 @@
 
 // ops
 
-#define SHIFTL(amount) (Env->memory.head -= amount)
-#define SHIFTR(amount) (Env->memory.head += amount)
+#define SEEKL(amount) (Env->memory.head -= amount)
+#define SEEKR(amount) (Env->memory.head += amount)
 
 #define SET()       MemWrite(&Env->memory, true)
 #define UNSET()     MemWrite(&Env->memory, false)
@@ -29,6 +29,15 @@
     CHECK(IoBufferPutBit(&Env->io, bit));           \
 }
 
+#define DEBUG()     {                               \
+    Debug(Env);                                     \
+}
+
+
+void
+DumpMemory(
+    Memory *Mem
+    );
 
 void
 Program(

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #include "Util.h"
@@ -25,6 +26,9 @@ typedef struct _IoBuffer
 {
     BitBuffer In;
     BitBuffer Out;
+
+    // XXX Should this encompass both in and out?
+    bool Eof;
 
     IoBufferConfig Config;
 } IoBuffer;

@@ -13,6 +13,10 @@
 #define LAST    8
 #define INITIAL 0
 
+#define EXTRACT_BIT(Data, Bit) (((Data) >> (Bit)) & 1)
+#define EMPLACE_BIT(Data, Bit) (((Data) & 1) << (Bit))
+
+
 int
 IoBufferInit(
     IoBuffer *IoBuf,
@@ -24,28 +28,28 @@ IoBufferInit(
     if (IoBuf == NULL)
     {
         status = ENV_BADPTR;
-        TagWarnx("NULL IoBuf pointer");
+        WmWarnx("NULL IoBuf pointer");
         goto Bail;
     }
 
     if (Config == NULL)
     {
         status = ENV_BADPTR;
-        TagWarnx("NULL Config pointer");
+        WmWarnx("NULL Config pointer");
         goto Bail;
     }
 
     if (Config->GetByte == NULL)
     {
         status = ENV_BADPTR;
-        TagWarnx("NULL GetByte function pointer");
+        WmWarnx("NULL GetByte function pointer");
         goto Bail;
     }
 
     if (Config->PutByte == NULL)
     {
         status = ENV_BADPTR;
-        TagWarnx("NULL PutByte function pointer");
+        WmWarnx("NULL PutByte function pointer");
         goto Bail;
     }
 
@@ -72,7 +76,13 @@ IoBufferGetBit(
     if (in == NULL)
     {
         status = ENV_BADPTR;
-        TagWarnx("NULL destination pointer");
+        WmWarnx("NULL destination pointer");
+        goto Bail;
+    }
+
+    if (IoBuf->Eof)
+    {
+        *in = 0;
         goto Bail;
     }
 
@@ -86,19 +96,24 @@ IoBufferGetBit(
 
         if (FAILED(status))
         {
-            // XXX according to the ELVM blurb for GETC, we should read a 0 for EOF
+            //
+            // According to the ELVM blurb for GETC, we should read a 0 for EOF
+            //
+            *in = 0;
+
+            IoBuf->Eof = true;
             status = ENV_EOF;
-            TagWarnx("EOF");
+            WmWarnx("EOF (In)");
             goto Bail;
         }
+        else
+        {
+            IoBuf->In.Buffer = status & 0xff;
+        }
 
-        IoBuf->In.Buffer = status & 0xff;
     }
 
-//#define EXTRACT_BIT(Data, Bit) ((((Data) & (1 << (Bit))) >> (Bit)) & 1)
-    // XXX Make a macro out of this so it doesn't look like trash
-    // It should also work with output...
-    *in = !!(IoBuf->In.Buffer & (1 << IoBuf->In.BitOffset++));
+    *in = EXTRACT_BIT(IoBuf->In.Buffer, IoBuf->In.BitOffset++);
     if (IoBuf->In.BitOffset == LAST)
     {
         memset(&IoBuf->In, 0, sizeof(IoBuf->In));
@@ -122,7 +137,12 @@ IoBufferPutBit(
     assert(IoBuf->Config.PutByte != NULL);
     assert(IoBuf->Out.BitOffset < LAST);
 
-    IoBuf->Out.Buffer |= ((!!Out) & 1) << IoBuf->Out.BitOffset++;
+    if (IoBuf->Eof)
+    {
+        goto Bail;
+    }
+
+    IoBuf->Out.Buffer |= EMPLACE_BIT(Out, IoBuf->Out.BitOffset++);
 
     //
     // If the output buffer is full then write out a byte.
@@ -136,8 +156,9 @@ IoBufferPutBit(
 
         if (FAILED(status))
         {
+            IoBuf->Eof = true;
             status = ENV_EOF;
-            TagWarnx("EOF");
+            WmWarnx("EOF (Out)");
             goto Bail;
         }
     }
