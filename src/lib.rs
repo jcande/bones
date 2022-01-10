@@ -255,41 +255,20 @@ impl ViewPort {
     }
 
     fn update_scale(&mut self, xy: Coord, delta: f64) -> bool {
-        //self.offset += xy;
-        //log!("zoom: {}, {}, {} => {}", xy.x, xy.y, delta, self.zoom);
-
         let width = self.width as f64;
         let height = self.height as f64;
 
+        // These are just magic numbers that seem to work ok. More thought should probably be put
+        // into this.
         let new_zoom = delta.mul_add(-0.001, self.zoom).clamp(0.08, 4.0);
 
+        let mut x = self.offset.x as f64;
+        let mut y = self.offset.y as f64;
+        x = x - (xy.x as f64 - x) * (new_zoom / self.zoom - 1.0);
+        y = y - (xy.y as f64 - y) * (new_zoom / self.zoom - 1.0);
 
-        // TODO figure out zoom-to-point logic
-
-
-
-        /*
-        let x_delta = (width / self.zoom) - (width / new_zoom);
-        let x_ratio = ((xy.x as f64) - (width / 2.0)) / width;
-        let y_delta = (height / self.zoom) - (height / new_zoom);
-        let y_ratio = ((xy.y as f64) - (height / 2.0)) / height;
-        self.offset += Coord::new((x_delta * x_ratio) as i32, (y_delta * y_ratio) as i32);
-        */
-
-
-
-
-        /*
-        let x_pos = (xy.x as f64) * self.zoom - (self.offset.x as f64);
-        let y_pos = (xy.y as f64) * self.zoom - (self.offset.y as f64);
-
-        let new_x = (xy.x as f64) * new_zoom - x_pos;
-        let new_y = (xy.y as f64) * new_zoom - y_pos;
-
-        self.offset.x = new_x as i32;
-        self.offset.y = new_y as i32;
-        */
-
+        self.offset.x = x as i32;
+        self.offset.y = y as i32;
         self.zoom = new_zoom;
 
         true
@@ -512,6 +491,19 @@ impl Renderer {
                 self.draw_square(enriched_tile.coord.0, enriched_tile.coord.1);
             }
         }
+
+        // draw a square at the center
+        let w = self.view.width as f64;
+        let wh = w / 2.0;
+        let h = self.view.height as f64;
+        let hh = h / 2.0;
+        self.canvas_ctx.save();
+        self.canvas_ctx.begin_path();
+        self.canvas_ctx.rect(wh - 1.0, hh - 1.0, 1.0, 1.0);
+        self.canvas_ctx.close_path();
+            self.canvas_ctx.set_line_width(8.0);
+            //self.canvas_ctx.stroke();
+        self.canvas_ctx.restore();
     }
 
     pub fn update_pointer(&mut self, event: PointerEvent) {
