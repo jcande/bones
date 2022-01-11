@@ -1,12 +1,3 @@
-/*
- * Events we need to handle:
- *  - wheel : This is for zoom-in/zoom-out
- *      https://developer.mozilla.org/en-US/docs/Web/API/Document/wheel_event
- *  - drag : This is for scrolling the view
- *      https://developer.mozilla.org/en-US/docs/Web/API/HTML_Drag_and_Drop_API
- *  - resize : This is for the window chagning size
- *      https://developer.mozilla.org/en-US/docs/Web/API/VisualViewport/resize_event
- */
 // TODO think of a more uniform/consistent/obvious way to deal with zooming. We also want to avoid
 // small floats as that is inaccurate
 use wasm_bindgen::prelude::*;

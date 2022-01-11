@@ -15,7 +15,6 @@ mod io_buffer;
 mod mosaic;
 mod tiling;
 mod wmach;
-mod lib;
 
 use compiler::Backend;
 

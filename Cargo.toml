@@ -44,4 +44,4 @@ features = [ "CanvasRenderingContext2d"
 # Commenting out this attribute because cargo gets upset. I guess remember to
 # comment this out when we're releasing.
 #[target."cfg(debug_assertions)".dependencies]
-console_error_panic_hook = "0.1.6"
+#console_error_panic_hook = "0.1.6"
