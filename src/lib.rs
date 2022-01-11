@@ -11,6 +11,10 @@ use std::ops::AddAssign;
 use std::ops::SubAssign;
 extern crate console_error_panic_hook;
 
+mod tiling;
+
+use crate::tiling::Tile;
+
 // A macro to provide `println!(..)`-style syntax for `console.log` logging.
 macro_rules! log {
     ( $( $t:tt )* ) => {
@@ -21,15 +25,6 @@ macro_rules! log {
 extern {
     pub fn alert(s: &str);
 }
-
-// These are defined in tiling.rs and we just copy them here to get this working
-struct Tile {
-    north: Pip,
-    east: Pip,
-    south: Pip,
-    west: Pip,
-}
-type Pip = usize;
 
 struct DapperTile {
     coord: (i32, i32),

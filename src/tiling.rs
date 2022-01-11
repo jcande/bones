@@ -62,10 +62,10 @@ impl Neg for Direction {
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Tile {
-    north: Pip,
-    east: Pip,
-    south: Pip,
-    west: Pip,
+    pub north: Pip,
+    pub east: Pip,
+    pub south: Pip,
+    pub west: Pip,
 }
 
 impl std::fmt::Display for Tile {
@@ -112,6 +112,9 @@ impl Tile {
     }
 }
 
+// This translates a bit from the simulating context into the tile computer. This means we'll only
+// need two values representing 0 and 1. The offset corresponds to the simulating context while the
+// resultant value is the tile context for the bit.
 type InputAlts<T> = [T; 2];
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
