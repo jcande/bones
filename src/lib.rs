@@ -651,7 +651,7 @@ pub enum Direction {
 #[wasm_bindgen(start)]
 pub fn js_main() -> Result<(), JsValue> {
     //utils::set_panic_hook();
-    #[cfg(debug_assertions)]
+    //#[cfg(debug_assertions)]
     console_error_panic_hook::set_once();
 
     let window = web_sys::window()

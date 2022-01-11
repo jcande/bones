@@ -1,3 +1,5 @@
+use gloo::events;
+
 use anyhow::Result;
 use thiserror::Error;
 
@@ -5,6 +7,7 @@ use std::path::Path;
 use std::str::FromStr;
 
 extern crate getopts;
+extern crate gloo;
 
 mod compiler;
 mod constraint;
@@ -12,6 +15,7 @@ mod io_buffer;
 mod mosaic;
 mod tiling;
 mod wmach;
+mod lib;
 
 use compiler::Backend;
 
