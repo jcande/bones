@@ -1,4 +1,5 @@
 use std::rc::Rc;
+use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsValue;
 
 use crate::view_port;
@@ -8,6 +9,13 @@ use crate::dispatch;
 
 // Cleanup
 use crate::Coord;
+
+// A macro to provide `println!(..)`-style syntax for `console.log` logging.
+macro_rules! log {
+    ( $( $t:tt )* ) => {
+        web_sys::console::log_1(&format!( $( $t )* ).into());
+    }
+}
 
 pub struct Renderer {
     model: Model,
@@ -102,14 +110,6 @@ impl Renderer {
                                    self.canvas.width().into(),
                                    self.canvas.height().into());
 
-        /*
-        const ORANGE: u32 = 0xffa500;
-        const GREEN: u32 = 0x008000;
-        const BLUE: u32 = 0x0000ff;
-        const RED: u32 = 0xff0000;
-        let colors = [RED, BLUE, GREEN, ORANGE];
-        */
-
         const TURQUOISE: u32 = 0x00c1ae;
         const PURPLE: u32 = 0x7320af;
         const ORANGE: u32 = 0xfa6211;
@@ -137,7 +137,7 @@ impl Renderer {
         }
     }
 
-    pub fn zoom(&mut self, xy: Coord, delta: f64) {
+    pub fn update_scale(&mut self, xy: Coord, delta: f64) {
         if self.view.update_scale(xy, delta) {
             self.render();
         }
@@ -149,5 +149,12 @@ impl Renderer {
         if self.view.update_dimensions(width, height) {
             self.render();
         }
+    }
+
+    pub fn periodic(&mut self) {
+        self.view.update_cursor(view_port::PointerEvent::Down(Coord::new(0, 0)));
+        self.view.update_cursor(view_port::PointerEvent::Move(Coord::new(-1, -1)));
+        self.view.update_cursor(view_port::PointerEvent::Up(Coord::new(10000, 10000)));
+        self.render();
     }
 }
