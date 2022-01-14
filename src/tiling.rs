@@ -233,6 +233,7 @@ impl std::fmt::Display for Domino {
 // If we have more than 4 billion then we'll have to bump it
 pub type TileRef = u32;
 
+// This is the "code" of the domino computer: a collection of tiles!
 #[derive(Debug)]
 pub struct DominoPile {
     // [Out; In; Pure := [Valid; Hidden]]

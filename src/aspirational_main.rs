@@ -1,5 +1,3 @@
-use gloo::events;
-
 use anyhow::Result;
 use thiserror::Error;
 
@@ -7,7 +5,6 @@ use std::path::Path;
 use std::str::FromStr;
 
 extern crate getopts;
-extern crate gloo;
 
 mod compiler;
 mod constraint;
