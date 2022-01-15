@@ -1,7 +1,3 @@
-#![feature(generic_const_exprs)]
-#![feature(const_generics_defaults)]
-#![feature(type_ascription)]
-
 // TODO think of a more uniform/consistent/obvious way to deal with zooming. We also want to avoid
 // small floats as that is inaccurate
 use wasm_bindgen::prelude::*;
@@ -10,33 +6,23 @@ use std::ops::AddAssign;
 use std::ops::SubAssign;
 extern crate console_error_panic_hook;
 
-mod tiling;
 mod view_port;
 mod renderer;
 mod dispatch;
+mod calcada;
+
+mod compiler;
+mod constraint;
+mod io_buffer;
+mod mosaic;
+mod tiling;
+mod wmach;
+
 
 // A macro to provide `println!(..)`-style syntax for `console.log` logging.
 macro_rules! log {
     ( $( $t:tt )* ) => {
         web_sys::console::log_1(&format!( $( $t )* ).into());
-    }
-}
-
-/*
- * requires:
- * #![feature(generic_const_exprs)]
- * #![feature(const_generics_defaults)]
- * #![feature(type_ascription)]
- */
-struct SpaceVec<const N: usize> {
-    components: [i32; N],
-}
-impl SpaceVec<{2: usize}> {
-    pub fn new(x: i32, y: i32) -> Self {
-        let array: [i32; 2] = [x, y];
-        SpaceVec::<{2: usize}> {
-            components: array,
-        }
     }
 }
 
@@ -100,7 +86,14 @@ pub fn js_main() -> Result<(), JsValue> {
         .ok_or(JsValue::from_str("unable to retrieve 2d context from domino canvas"))?
         .dyn_into::<web_sys::CanvasRenderingContext2d>()?;
 
-    let _dispatch = dispatch::Dispatch::new(window, container, canvas, context);
+    // XXX maybe panic to print out the error?
+    main(window, container, canvas, context).or(Err(JsValue::UNDEFINED))
+}
+
+fn main(window: web_sys::Window, container: web_sys::HtmlElement, canvas: web_sys::HtmlCanvasElement, context: web_sys::CanvasRenderingContext2d) -> anyhow::Result<()> {
+
+    let calcada = calcada::Calcada::new()?;
+    let _dispatch = dispatch::Dispatch::new(calcada, window, container, canvas, context);
 
     Ok(())
 }

@@ -1,6 +1,5 @@
 use std::rc::Rc;
 use std::cell::RefCell;
-use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 
 use gloo::events::{EventListener, EventListenerOptions};
@@ -10,6 +9,7 @@ use gloo::timers::callback::Interval;
 use crate::renderer;
 use crate::view_port;
 use crate::Coord;
+use crate::calcada;
 
 pub struct Dispatch {
     _listeners: Vec<EventListener>,
@@ -18,9 +18,9 @@ pub struct Dispatch {
 }
 
 impl Dispatch {
-    pub fn new(window: web_sys::Window, container: web_sys::HtmlElement, canvas: web_sys::HtmlCanvasElement, context: web_sys::CanvasRenderingContext2d) -> Rc<Self> {
+    pub fn new(calcada: calcada::Calcada, window: web_sys::Window, container: web_sys::HtmlElement, canvas: web_sys::HtmlCanvasElement, context: web_sys::CanvasRenderingContext2d) -> Rc<Self> {
         // First construct the Dispatch object with uninitialized receivers (e.g., renderer).
-        let renderer = Rc::new(RefCell::new(renderer::Renderer::new(canvas.clone(), context)));
+        let renderer = Rc::new(RefCell::new(renderer::Renderer::new(calcada, canvas.clone(), context)));
 
         // Construct the various callbacks that we're interested in.
         let mut listeners = Vec::new();

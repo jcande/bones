@@ -1,24 +1,16 @@
 use std::rc::Rc;
-use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsValue;
 
 use crate::view_port;
-use crate::view_port::Model;//XXX temp
+use crate::calcada;
 use crate::tiling;
 use crate::dispatch;
 
 // Cleanup
 use crate::Coord;
 
-// A macro to provide `println!(..)`-style syntax for `console.log` logging.
-macro_rules! log {
-    ( $( $t:tt )* ) => {
-        web_sys::console::log_1(&format!( $( $t )* ).into());
-    }
-}
-
 pub struct Renderer {
-    model: Model,
+    model: calcada::Calcada,
 
     view: view_port::ViewPort,
 
@@ -33,10 +25,10 @@ impl Renderer {
     pub const TILE_HEIGHT: f64 = 100.0;
 
     // XXX should we really pass this in like this?
-    pub fn new(canvas: web_sys::HtmlCanvasElement, context: web_sys::CanvasRenderingContext2d) -> Self {
+    pub fn new(calcada: calcada::Calcada, canvas: web_sys::HtmlCanvasElement, context: web_sys::CanvasRenderingContext2d) -> Self {
         context.set_image_smoothing_enabled(false);
         Self {
-            model: Model::new(),
+            model: calcada,
 
             view: view_port::ViewPort::new(canvas.width(), canvas.height()),
 
@@ -153,9 +145,9 @@ impl Renderer {
     }
 
     pub fn periodic(&mut self) {
-        self.view.update_cursor(view_port::PointerEvent::Down(Coord::new(0, 0)));
-        self.view.update_cursor(view_port::PointerEvent::Move(Coord::new(-1, -1)));
-        self.view.update_cursor(view_port::PointerEvent::Up(Coord::new(10000, 10000)));
+        _ = self.view.update_cursor(view_port::PointerEvent::Down(Coord::new(0, 0)));
+        _ = self.view.update_cursor(view_port::PointerEvent::Move(Coord::new(-1, -1)));
+        _ = self.view.update_cursor(view_port::PointerEvent::Up(Coord::new(10000, 10000)));
         self.render();
     }
 }
