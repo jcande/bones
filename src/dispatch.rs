@@ -27,7 +27,7 @@ impl Dispatch {
         let canvas_target = web_sys::EventTarget::from(canvas);
         let window_target = web_sys::EventTarget::from(window);
 
-        if true {
+        if false {
             let renderer_clone = Rc::clone(&renderer);
             listeners.push(EventListener::new_with_options(&canvas_target,
                                                            "wheel",

@@ -122,11 +122,12 @@ impl Renderer {
             .expect("why couldn't we compute? Out of memory?");
 
         // Second, display the tiles
-        for enriched_tile in self.model.tile_range(range_handle) {
-            self.draw_triangle(enriched_tile.coord.0, enriched_tile.coord.1, tiling::Direction::North, colors[enriched_tile.tile.north]);
-            self.draw_triangle(enriched_tile.coord.0, enriched_tile.coord.1, tiling::Direction::East, colors[enriched_tile.tile.east]);
-            self.draw_triangle(enriched_tile.coord.0, enriched_tile.coord.1, tiling::Direction::South, colors[enriched_tile.tile.south]);
-            self.draw_triangle(enriched_tile.coord.0, enriched_tile.coord.1, tiling::Direction::West, colors[enriched_tile.tile.west]);
+        for tile_context in self.model.tile_range(range_handle) {
+            let tile = tile_context.tile;
+            self.draw_triangle(tile_context.coord.0, tile_context.coord.1, tiling::Direction::North, colors[tile.north]);
+            self.draw_triangle(tile_context.coord.0, tile_context.coord.1, tiling::Direction::East, colors[tile.east]);
+            self.draw_triangle(tile_context.coord.0, tile_context.coord.1, tiling::Direction::South, colors[tile.south]);
+            self.draw_triangle(tile_context.coord.0, tile_context.coord.1, tiling::Direction::West, colors[tile.west]);
         }
     }
 

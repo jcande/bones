@@ -27,32 +27,34 @@ impl<'a> Iterator for TileView<'a> {
     type Item = DapperTile;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let coord = (self.x, self.y);
+        loop {
+            let coord = (self.x, self.y);
 
-        // Check to see if we're outside the bounds. If that's the case, there are no more tiles
-        // remaining in the iterator.
-        if self.y > self.col_end {
-            return None;
+            // Check to see if we're outside the bounds. If that's the case, there are no more tiles
+            // remaining in the iterator.
+            if self.y > self.col_end {
+                return None;
+            }
+
+            // Calculate the next tile's coordinate, ensuring we wrap to the next row if we are at the
+            // end. We'll check on the next iteration if the computed coordinate is valid. We know that
+            // the CURRENT coordinate must be ok and that's what the caller is asking for.
+            self.x = self.x + 1;
+            if self.x > self.row_end {
+                self.x = self.row_start;
+
+                self.y = self.y + 1;
+            }
+
+            // If the coordinate does not correspond with a tile (e.g., it is past the border and
+            // somewhere in the void), then we'll try the next coordinate; no biggie.
+            if let Some(tile) = self.model.get_tile(coord.0, coord.1) {
+                return Some(DapperTile {
+                    coord: coord,
+                    tile: tile,
+                });
+            }
         }
-
-        // Calculate the next tile's coordinate, ensuring we wrap to the next row if we are at the
-        // end. We'll check on the next iteration if the computed coordinate is valid. We know that
-        // the CURRENT coordinate must be ok and that's what the caller is asking for.
-        self.x = self.x + 1;
-        if self.x > self.row_end {
-            self.x = self.row_start;
-
-            self.y = self.y + 1;
-        }
-
-        let tile = self.model
-            .get_tile(coord.0, coord.1)
-            .expect("We should have computed all tiles in the given view before handing out an iterator to them");
-
-        Some(DapperTile {
-            coord: coord,
-            tile: tile,
-        })
     }
 }
 
@@ -78,6 +80,10 @@ impl<'a> Model {
 
     // this should fail if we don't have the tile computed
     pub fn get_tile(&self, row: i32, col: i32) -> Option<tiling::Tile> {
+        if row > col || row < -col {
+            return None;
+        }
+
         // we don't want negative numbers with modulo
         let row = (row as u32) % 2;
         let col = (col as u32) % 2;
