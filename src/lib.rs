@@ -19,13 +19,6 @@ mod tiling;
 mod wmach;
 
 
-// A macro to provide `println!(..)`-style syntax for `console.log` logging.
-macro_rules! log {
-    ( $( $t:tt )* ) => {
-        web_sys::console::log_1(&format!( $( $t )* ).into());
-    }
-}
-
 #[derive(PartialEq, Clone, Copy, Debug)]
 struct Coord {
     pub x: i32,
@@ -86,8 +79,11 @@ pub fn js_main() -> Result<(), JsValue> {
         .ok_or(JsValue::from_str("unable to retrieve 2d context from domino canvas"))?
         .dyn_into::<web_sys::CanvasRenderingContext2d>()?;
 
-    // XXX maybe panic to print out the error?
-    main(window, container, canvas, context).or(Err(JsValue::UNDEFINED))
+    if let Err(e) = main(window, container, canvas, context) {
+        panic!("{}", e);
+    }
+
+    Ok(())
 }
 
 fn main(window: web_sys::Window, container: web_sys::HtmlElement, canvas: web_sys::HtmlCanvasElement, context: web_sys::CanvasRenderingContext2d) -> anyhow::Result<()> {

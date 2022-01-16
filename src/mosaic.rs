@@ -191,6 +191,13 @@ impl Program {
         })
     }
 
+    pub fn state(&self) -> BoardState {
+        self.state.clone()
+            .into_iter()
+            .map(|r| self.pile[r])
+            .collect()
+    }
+
     fn perform_io(&mut self, state: BoardStateRef) -> Result<BoardStateRef, MosaicError> {
         let mut next = Vec::with_capacity(state.len());
         for r in state.into_iter() {

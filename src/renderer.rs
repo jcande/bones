@@ -102,11 +102,13 @@ impl Renderer {
                                    self.canvas.width().into(),
                                    self.canvas.height().into());
 
+        /*
         const TURQUOISE: u32 = 0x00c1ae;
         const PURPLE: u32 = 0x7320af;
         const ORANGE: u32 = 0xfa6211;
         const YELLOW: u32 = 0xfdee00;
         let colors = [TURQUOISE, ORANGE, PURPLE, YELLOW];
+        */
 
         let ((row_start, row_end), (col_start, col_end)) = self.view.scope();
 
@@ -116,10 +118,10 @@ impl Renderer {
         // Second, display the tiles
         for tile_context in self.model.tile_range(range_handle) {
             let tile = tile_context.tile;
-            self.draw_triangle(tile_context.coord.0, tile_context.coord.1, tiling::Direction::North, colors[tile.north]);
-            self.draw_triangle(tile_context.coord.0, tile_context.coord.1, tiling::Direction::East, colors[tile.east]);
-            self.draw_triangle(tile_context.coord.0, tile_context.coord.1, tiling::Direction::South, colors[tile.south]);
-            self.draw_triangle(tile_context.coord.0, tile_context.coord.1, tiling::Direction::West, colors[tile.west]);
+            self.draw_triangle(tile_context.coord.0, tile_context.coord.1, tiling::Direction::North, tile.north as u32);
+            self.draw_triangle(tile_context.coord.0, tile_context.coord.1, tiling::Direction::East, tile.east as u32);
+            self.draw_triangle(tile_context.coord.0, tile_context.coord.1, tiling::Direction::South, tile.south as u32);
+            self.draw_triangle(tile_context.coord.0, tile_context.coord.1, tiling::Direction::West, tile.west as u32);
         }
     }
 
