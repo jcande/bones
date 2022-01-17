@@ -135,8 +135,10 @@ impl Renderer {
             let tile = tile_context.tile;
             let [n, e, s, w] = [tile.north, tile.east, tile.south, tile.west]
                 .map(|d| -> u32 {
+                    let d = d as u32;
                     let mut s = std::collections::hash_map::DefaultHasher::new();
-                    (d as u32).hash(&mut s);
+                    // interesting: (0, 1), (3, 1)
+                    d.wrapping_add(3).wrapping_mul(1).hash(&mut s);
                     let wide = s.finish();
                     let upper = ((wide >> 32) & 0xffffffff) as u32;
                     let lower = ((wide >> 0) & 0xffffffff) as u32;

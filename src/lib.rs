@@ -20,7 +20,7 @@ mod wmach;
 
 
 const SHOW_LINES: bool = false;
-const SHOW_BORDER_TILES: bool = false;
+const SHOW_BORDER_TILES: bool = true;
 
 
 #[derive(PartialEq, Clone, Copy, Debug)]

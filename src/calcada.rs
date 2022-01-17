@@ -84,6 +84,7 @@ struct TileRow {
 pub struct Calcada {
     program: mosaic::Program,
     mosaic: Vec<TileRow>,
+    running: bool,
 }
 impl<'a> Calcada {
     pub fn new() -> anyhow::Result<Self> {
@@ -100,10 +101,10 @@ impl<'a> Calcada {
         Ok(Self {
             program: program,
             mosaic: mosaic,
+            running: true,
         })
     }
 
-    // TODO handle cases where the tile program crashes/terminates.
     pub fn get_tile(&self, row: i32, col: i32) -> Option<tiling::Tile> {
         let default = if crate::SHOW_BORDER_TILES {
             Some(self.program.border())
@@ -132,52 +133,16 @@ impl<'a> Calcada {
         return None;
     }
 
-    fn print_it(state: &mosaic::BoardState) -> String {
-        let mut s = String::new();
-        let mut initial = true;
-        for tile in state.iter() {
-            if !initial {
-                s += ", ";
-            }
-            initial = false;
-            s += "Tile { ";
-
-            let mut sub_initial = true;
-            for (name, value) in [("north", tile.north), ("east", tile.east), ("south", tile.south), ("west", tile.west)] {
-                if !sub_initial {
-                    s += ", ";
-                }
-                sub_initial = false;
-                s += name;
-                s += ": ";
-
-                let unique_magic = std::usize::MAX;
-                let unalloc = 2147483647;
-                if value == unique_magic {
-                    s += "m";
-                } else if value == 0 {
-                    s += "e";
-                } else if value == unalloc {
-                    s += "U";
-                } else {
-                    s += &value.to_string();
-                }
-            }
-
-            s += " }"
-        }
-
-        s
-    }
-
-    pub fn compute(&mut self, row_start: i32, row_end: i32, col_start: i32, col_end: i32) -> Result<ComputeCertificate, mosaic::MosaicError> {
+    pub fn compute(&mut self, row_start: i32, row_end: i32, col_start: i32, mut col_end: i32) -> Result<ComputeCertificate, mosaic::MosaicError> {
         // calculate new tiles, if necessary
         if col_end >= 0 {
-            while self.mosaic.len() <= (col_end as usize) {
-                // TODO if this fails, that's ok! That's just the end of the tiles. Save a flag
-                // that says we can't run anymore and have the get_tile() function handle row/col
-                // past our execution state in the same way as before it.
-                self.program.step()?;
+            while self.mosaic.len() <= (col_end as usize) && self.running {
+                if let Err(e) = self.program.step() {
+                    log!("Unable to step: {:?}", e);
+                    self.running = false;
+                    break;
+                }
+
                 let state = self.program.state();
 
                 // We have 3 cases:
@@ -193,8 +158,6 @@ impl<'a> Calcada {
                     borders in the initial state and every subsequent state.");
                 let prev = self.mosaic.last().expect("We can only evolve from an initial tile set. Where is that row?");
 
-                log!("prev state {}: {:?}", self.mosaic.len() - 1, Calcada::print_it(&prev.tiles));
-                log!("cur state {}: {:?}", self.mosaic.len(), Calcada::print_it(&state));
                 let offset = if state.len() == prev.tiles.len() {
                     // This is case 1. There is no expansion of either border.
                     0
@@ -226,7 +189,7 @@ impl<'a> Calcada {
             row_start: row_start,
             row_end: row_end,
             col_start: col_start,
-            col_end: col_end,
+            col_end: (self.mosaic.len() - 1) as i32,
         })
     }
 
