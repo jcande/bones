@@ -192,6 +192,9 @@ impl Program {
         })
     }
 
+    pub fn border(&self) -> Tile {
+        self.pile[self.border]
+    }
     pub fn state(&self) -> BoardState {
         self.state.clone()
             .into_iter()

@@ -101,6 +101,12 @@ impl Renderer {
             self.canvas_ctx.set_fill_style(&color);
 
             self.canvas_ctx.fill();
+
+            if crate::SHOW_LINES {
+                self.canvas_ctx.set_stroke_style(&JsValue::from_str("#000000"));
+                self.canvas_ctx.set_line_width(0.5);
+                self.canvas_ctx.stroke();
+            }
         }
         self.canvas_ctx.restore();
     }

@@ -103,23 +103,33 @@ impl<'a> Calcada {
         })
     }
 
-    // this should fail if we don't have the tile computed
+    // TODO handle cases where the tile program crashes/terminates.
     pub fn get_tile(&self, row: i32, col: i32) -> Option<tiling::Tile> {
-        // We do not compute backward in time. The initial tape is at row 0.
+        let default = if crate::SHOW_BORDER_TILES {
+            Some(self.program.border())
+        } else {
+            None
+        };
+
+        // We do not compute backward in time. The initial tape is at col 0.
         if col < 0 {
-            return None;
+            return default;
         }
+
         let col = col as usize;
+        if col < self.mosaic.len() {
+            assert!(self.mosaic[col].offset <= 0);
+            let adjusted = (row - self.mosaic[col].offset) as usize;
+            let lower = self.mosaic[col].offset;
+            let upper = self.mosaic[col].tiles.len();
+            if adjusted >= upper || row < lower {
+                return default;
+            }
 
-        assert!(self.mosaic[col].offset <= 0);
-        let adjusted = (row - self.mosaic[col].offset) as usize;
-        let lower = self.mosaic[col].offset;
-        let upper = self.mosaic[col].tiles.len();
-        if adjusted >= upper || row < lower {
-            return None;
+            return Some(self.mosaic[col].tiles[adjusted]);
         }
 
-        Some(self.mosaic[col].tiles[adjusted])
+        return None;
     }
 
     fn print_it(state: &mosaic::BoardState) -> String {

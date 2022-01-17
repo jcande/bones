@@ -19,6 +19,10 @@ mod tiling;
 mod wmach;
 
 
+const SHOW_LINES: bool = false;
+const SHOW_BORDER_TILES: bool = false;
+
+
 #[derive(PartialEq, Clone, Copy, Debug)]
 struct Coord {
     pub x: i32,
