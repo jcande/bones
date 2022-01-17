@@ -5,6 +5,7 @@ use std::fmt;
 
 use crate::tiling::pip_from_components;
 use crate::tiling::Direction;
+use crate::tiling::Orientation;
 use crate::tiling::Domino;
 use crate::tiling::DominoPile;
 use crate::tiling::Pip;
@@ -193,6 +194,12 @@ impl Program {
 
     pub fn state(&self) -> BoardState {
         self.state.clone()
+            .into_iter()
+            .map(|r| self.pile[r])
+            .collect()
+    }
+    pub fn matches(&self, tile: &Tile, direction: Orientation) -> Vec<Tile> {
+        self.pile.matches_tile(tile, direction)
             .into_iter()
             .map(|r| self.pile[r])
             .collect()
@@ -448,6 +455,26 @@ impl compiler::Backend<Program> for wmach::Program {
 
             set.append(&mut translated);
         }
+
+        //
+        // The starting configuration for our tape lays just enough ground work to ensure
+        // subsequent matches line up in a way commensurate with the w-machine we're emulating.
+        // It looks like this:
+        //
+        // +-----++-----++-----+
+        // |\ U /||\ U /||\ U /|
+        // | \ / || \ / || \ / |
+        // |U x m||m x m||m x U|
+        // | / \ || / \ || / \ |
+        // |/ 0 \||/ S \||/ 0 \|
+        // +-----++-----++-----+
+        //
+        // where:
+        //  U = UNALLOCATED_PIP
+        //  m = unique_magic
+        //  0 = EMPTY_PIP
+        //  S = start_pip
+        //
 
         Program::new(
             set.into_iter().collect(),

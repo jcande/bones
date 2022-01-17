@@ -105,26 +105,6 @@ impl<'a> Calcada {
 
     // this should fail if we don't have the tile computed
     pub fn get_tile(&self, row: i32, col: i32) -> Option<tiling::Tile> {
-        /*
-        if row > col || row < -col {
-            return None;
-        }
-
-        // we don't want negative numbers with modulo
-        let row = (row as u32) % 2;
-        let col = (col as u32) % 2;
-
-        // bullshit data that will always be valid
-        let tile = tiling::Tile {
-            north: (col % 2) as usize,
-            east: (2 + (row % 2)) as usize,
-            south: ((col + 1) % 2) as usize,
-            west: (2 + (row + 1) % 2) as usize,
-        };
-        //log!("pips (nesw): {}, {}, {}, {}", tile.north, tile.east, tile.south, tile.west);
-        Some(tile)
-        */
-
         // We do not compute backward in time. The initial tape is at row 0.
         if col < 0 {
             return None;
@@ -142,22 +122,97 @@ impl<'a> Calcada {
         Some(self.mosaic[col].tiles[adjusted])
     }
 
-    pub fn compute(&mut self, row_start: i32, row_end: i32, col_start: i32, col_end: i32) -> Option<ComputeCertificate> {
+    fn print_it(state: &mosaic::BoardState) -> String {
+        let mut s = String::new();
+        let mut initial = true;
+        for tile in state.iter() {
+            if !initial {
+                s += ", ";
+            }
+            initial = false;
+            s += "Tile { ";
+
+            let mut sub_initial = true;
+            for (name, value) in [("north", tile.north), ("east", tile.east), ("south", tile.south), ("west", tile.west)] {
+                if !sub_initial {
+                    s += ", ";
+                }
+                sub_initial = false;
+                s += name;
+                s += ": ";
+
+                let unique_magic = std::usize::MAX;
+                let unalloc = 2147483647;
+                if value == unique_magic {
+                    s += "m";
+                } else if value == 0 {
+                    s += "e";
+                } else if value == unalloc {
+                    s += "U";
+                } else {
+                    s += &value.to_string();
+                }
+            }
+
+            s += " }"
+        }
+
+        s
+    }
+
+    pub fn compute(&mut self, row_start: i32, row_end: i32, col_start: i32, col_end: i32) -> Result<ComputeCertificate, mosaic::MosaicError> {
         // calculate new tiles, if necessary
         if col_end >= 0 {
             while self.mosaic.len() <= (col_end as usize) {
-                self.program.step()
-                    .ok()?;
+                // TODO if this fails, that's ok! That's just the end of the tiles. Save a flag
+                // that says we can't run anymore and have the get_tile() function handle row/col
+                // past our execution state in the same way as before it.
+                self.program.step()?;
                 let state = self.program.state();
-                // XXX need to figure out which direction (east vs west) the state grew...
+
+                // We have 3 cases:
+                //  1) the new state is the same length as the previous one
+                //  2) the new state is larger on the western border
+                //  3) the new state is larger on the eastern border
+                //
+                // For 1) we just re-use the previous offset. For 2) and 3) we either change the
+                // offset or leave it. The only time we'd need to update the offset is for the
+                // western case 2. Let's just examine that and ignore the eastern case.
+
+                assert!(state.len() > 2, "All tile programs should have at least 1 tile and 2
+                    borders in the initial state and every subsequent state.");
+                let prev = self.mosaic.last().expect("We can only evolve from an initial tile set. Where is that row?");
+
+                log!("prev state {}: {:?}", self.mosaic.len() - 1, Calcada::print_it(&prev.tiles));
+                log!("cur state {}: {:?}", self.mosaic.len(), Calcada::print_it(&state));
+                let offset = if state.len() == prev.tiles.len() {
+                    // This is case 1. There is no expansion of either border.
+                    0
+                } else {
+                    // This is case 2 and 3, but we're only concerning ourselves with the western
+                    // expansion case.
+                    let west_cur = state[1]; // not 0 as that is the unallocated marker, but the next one that is real
+                    let west_prev = prev.tiles[1];
+
+                    if west_prev.south != west_cur.north {
+                        // Think about the numberline. The west is leftwards which is negative. And
+                        // based on how we've architected the tile machine, it can only grow one
+                        // tile at a time so we know it can't be more than 1 western tile that
+                        // expanded.
+                        -1
+                    } else {
+                        0
+                    }
+                };
+
                 self.mosaic.push(TileRow {
-                    offset: 0,//XXX TODO FIXME this is wrong because we don't calculate which direction the state grew to impact this offset
+                    offset: prev.offset + offset,
                     tiles: state,
                 });
             }
         }
 
-        Some(ComputeCertificate {
+        Ok(ComputeCertificate {
             row_start: row_start,
             row_end: row_end,
             col_start: col_start,

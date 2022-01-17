@@ -1,10 +1,19 @@
 use std::rc::Rc;
 use wasm_bindgen::JsValue;
+use std::hash::Hash;
+use std::hash::Hasher;
 
 use crate::view_port;
 use crate::calcada;
 use crate::tiling;
 use crate::dispatch;
+
+// A macro to provide `println!(..)`-style syntax for `console.log` logging.
+macro_rules! log {
+    ( $( $t:tt )* ) => {
+        web_sys::console::log_1(&format!( $( $t )* ).into());
+    }
+}
 
 // Cleanup
 use crate::Coord;
@@ -113,15 +122,24 @@ impl Renderer {
         let ((row_start, row_end), (col_start, col_end)) = self.view.scope();
 
         let range_handle = self.model.compute(row_start, row_end, col_start, col_end)
-            .expect("why couldn't we compute? Out of memory?");
+            .expect("Unable to compute view");
 
         // Second, display the tiles
         for tile_context in self.model.tile_range(range_handle) {
             let tile = tile_context.tile;
-            self.draw_triangle(tile_context.coord.0, tile_context.coord.1, tiling::Direction::North, tile.north as u32);
-            self.draw_triangle(tile_context.coord.0, tile_context.coord.1, tiling::Direction::East, tile.east as u32);
-            self.draw_triangle(tile_context.coord.0, tile_context.coord.1, tiling::Direction::South, tile.south as u32);
-            self.draw_triangle(tile_context.coord.0, tile_context.coord.1, tiling::Direction::West, tile.west as u32);
+            let [n, e, s, w] = [tile.north, tile.east, tile.south, tile.west]
+                .map(|d| -> u32 {
+                    let mut s = std::collections::hash_map::DefaultHasher::new();
+                    (d as u32).hash(&mut s);
+                    let wide = s.finish();
+                    let upper = ((wide >> 32) & 0xffffffff) as u32;
+                    let lower = ((wide >> 0) & 0xffffffff) as u32;
+                    upper ^ lower
+                });
+            self.draw_triangle(tile_context.coord.0, tile_context.coord.1, tiling::Direction::North, n);
+            self.draw_triangle(tile_context.coord.0, tile_context.coord.1, tiling::Direction::East, e);
+            self.draw_triangle(tile_context.coord.0, tile_context.coord.1, tiling::Direction::South, s);
+            self.draw_triangle(tile_context.coord.0, tile_context.coord.1, tiling::Direction::West, w);
         }
     }
 
