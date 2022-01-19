@@ -43,12 +43,17 @@ pub struct ViewPort {
 }
 impl ViewPort {
     pub fn new(width: u32, height: u32) -> Self {
+        let starting_coord = if crate::SCREEN_SAVER_MODE {
+            Coord::new(300, 0)
+        } else {
+            Coord::new(0, 0)
+        };
         Self {
             zoom: 1.0,
 
             cursor: PointerState::Released,
 
-            offset: Coord::new(0, 0),
+            offset: starting_coord,
 
             // Yeah, we cast it. The interface gives us some stuff as i32 and others u32. It's
             // annoying. Maybe I'll add asserts later...

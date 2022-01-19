@@ -24,7 +24,7 @@ pub struct TileView<'a> {
     row_start: i32,
     row_end: i32,
 
-    col_start: i32,
+    _col_start: i32,
     col_end: i32,
 
     x: i32,
@@ -133,7 +133,7 @@ impl<'a> Calcada {
         return None;
     }
 
-    pub fn compute(&mut self, row_start: i32, row_end: i32, col_start: i32, mut col_end: i32) -> Result<ComputeCertificate, mosaic::MosaicError> {
+    pub fn compute(&mut self, row_start: i32, row_end: i32, col_start: i32, col_end: i32) -> Result<ComputeCertificate, mosaic::MosaicError> {
         // calculate new tiles, if necessary
         if col_end >= 0 {
             while self.mosaic.len() <= (col_end as usize) && self.running {
@@ -157,6 +157,7 @@ impl<'a> Calcada {
                 assert!(state.len() > 2, "All tile programs should have at least 1 tile and 2
                     borders in the initial state and every subsequent state.");
                 let prev = self.mosaic.last().expect("We can only evolve from an initial tile set. Where is that row?");
+                let prev_offset = prev.offset;
 
                 let offset = if state.len() == prev.tiles.len() {
                     // This is case 1. There is no expansion of either border.
@@ -179,7 +180,7 @@ impl<'a> Calcada {
                 };
 
                 self.mosaic.push(TileRow {
-                    offset: prev.offset + offset,
+                    offset: prev_offset + offset,
                     tiles: state,
                 });
             }
@@ -202,7 +203,7 @@ impl<'a> Calcada {
             row_start: proof.row_start,
             row_end: proof.row_end,
 
-            col_start: proof.col_start,
+            _col_start: proof.col_start,
             col_end: proof.col_end,
 
             x: proof.row_start,

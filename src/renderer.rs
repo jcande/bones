@@ -174,8 +174,9 @@ impl Renderer {
 
     pub fn periodic(&mut self) {
         _ = self.view.update_cursor(view_port::PointerEvent::Down(Coord::new(0, 0)));
-        _ = self.view.update_cursor(view_port::PointerEvent::Move(Coord::new(-1, -1)));
-        _ = self.view.update_cursor(view_port::PointerEvent::Up(Coord::new(10000, 10000)));
+        _ = self.view.update_cursor(view_port::PointerEvent::Move(Coord::new(-1, -3)));
+        let value_never_used_and_does_not_matter = 9999;
+        _ = self.view.update_cursor(view_port::PointerEvent::Up(Coord::new(value_never_used_and_does_not_matter, value_never_used_and_does_not_matter)));
         self.render();
     }
 }
