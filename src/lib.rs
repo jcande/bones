@@ -21,8 +21,6 @@ mod tiling;
 mod wmach;
 
 
-const SHOW_LINES: bool = false;
-const SHOW_BORDER_TILES: bool = true;
 const SCREEN_SAVER_MODE: bool = false;
 
 

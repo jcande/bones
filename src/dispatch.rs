@@ -56,6 +56,8 @@ impl Dispatch {
                                                            "wheel",
                                                            EventListenerOptions::enable_prevent_default(),
                                                            move |event: &web_sys::Event| {
+                event.prevent_default();
+
                 let wheel = event.clone()
                     .dyn_into::<web_sys::WheelEvent>()
                     .expect("The event passed to wheel callback doesn't match");
@@ -110,19 +112,111 @@ impl Dispatch {
             }));
 
             let renderer_clone = Rc::clone(&renderer);
+            listeners.push(EventListener::new_with_options(&canvas_target,
+                                                           "touchstart",
+                                                           EventListenerOptions::enable_prevent_default(),
+                                                           move |event: &web_sys::Event| {
+                event.prevent_default();
+
+                let touch_event = event.clone()
+                    .dyn_into::<web_sys::TouchEvent>()
+                    .expect("The event passed to pointerdown callback doesn't match");
+                let touches: web_sys::TouchList = touch_event.touches();
+
+                if touches.length() > 1 {
+                    return;
+                }
+
+                if let Some(touch) = touches.item(0) {
+                    renderer_clone.try_borrow_mut()
+                        .expect("Unable to borrow renderer for touchstart event")
+                        .update_pointer(view_port::PointerEvent::Down(Coord::new(touch.client_x(), touch.client_y())));
+                }
+            }));
+            let renderer_clone = Rc::clone(&renderer);
+            listeners.push(EventListener::new_with_options(&canvas_target,
+                                                           "touchmove",
+                                                           EventListenerOptions::enable_prevent_default(),
+                                                           move |event: &web_sys::Event| {
+                event.prevent_default();
+
+                let touch_event = event.clone()
+                    .dyn_into::<web_sys::TouchEvent>()
+                    .expect("The event passed to pointerdown callback doesn't match");
+                let touches: web_sys::TouchList = touch_event.touches();
+
+                if touches.length() > 1 {
+                    return;
+                }
+
+                if let Some(touch) = touches.item(0) {
+                    renderer_clone.try_borrow_mut()
+                        .expect("Unable to borrow renderer for touchmove event")
+                        .update_pointer(view_port::PointerEvent::Move(Coord::new(touch.client_x(), touch.client_y())));
+                }
+            }));
+            let renderer_clone = Rc::clone(&renderer);
+            listeners.push(EventListener::new_with_options(&canvas_target,
+                                                           "touchend",
+                                                           EventListenerOptions::enable_prevent_default(),
+                                                           move |event: &web_sys::Event| {
+                event.prevent_default();
+
+                let touch_event = event.clone()
+                    .dyn_into::<web_sys::TouchEvent>()
+                    .expect("The event passed to pointerdown callback doesn't match");
+                let touches: web_sys::TouchList = touch_event.touches();
+
+                if touches.length() > 1 {
+                    return;
+                }
+
+                if let Some(touch) = touches.item(0) {
+                    renderer_clone.try_borrow_mut()
+                        .expect("Unable to borrow renderer for touchend event")
+                        .update_pointer(view_port::PointerEvent::Up(Coord::new(touch.client_x(), touch.client_y())));
+                }
+            }));
+            let renderer_clone = Rc::clone(&renderer);
+            listeners.push(EventListener::new_with_options(&canvas_target,
+                                                           "touchcancel",
+                                                           EventListenerOptions::enable_prevent_default(),
+                                                           move |event: &web_sys::Event| {
+                event.prevent_default();
+
+                let touch_event = event.clone()
+                    .dyn_into::<web_sys::TouchEvent>()
+                    .expect("The event passed to pointerdown callback doesn't match");
+                let touches: web_sys::TouchList = touch_event.touches();
+
+                if touches.length() > 1 {
+                    return;
+                }
+
+                if let Some(touch) = touches.item(0) {
+                    renderer_clone.try_borrow_mut()
+                        .expect("Unable to borrow renderer for touchcancel event")
+                        .update_pointer(view_port::PointerEvent::Out(Coord::new(touch.client_x(), touch.client_y())));
+                }
+            }));
+
+            let renderer_clone = Rc::clone(&renderer);
             listeners.push(EventListener::new(&window_target, "resize", move |_event: &web_sys::Event| {
                 // I wanted to use `?` but couldn't change the closure interface. The inner-closure's
                 // return is ignored.
                 let _ = || -> Result<(), ()> {
-                    let width = params.container.offset_width()
+                    // XXX weird bug where these values constantly grow. No clue.
+                    let width: u32 = params.container.client_width()
                         .try_into()
                         .or(Err(()))?;
-                    let height = params.container.offset_height()
+                    let height: u32 = params.container.client_height()
                         .try_into()
                         .or(Err(()))?;
+                    /*
                     renderer_clone.try_borrow_mut()
                         .expect("Unable to borrow renderer for resize event")
                         .update_dimensions(width, height);
+                    */
                     Ok(())
                 }();
             }));
