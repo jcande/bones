@@ -11,24 +11,47 @@ use crate::view_port;
 use crate::Coord;
 use crate::calcada;
 
+// A macro to provide `println!(..)`-style syntax for `console.log` logging.
+macro_rules! log {
+    ( $( $t:tt )* ) => {
+        web_sys::console::log_1(&format!( $( $t )* ).into());
+    }
+}
+
 pub struct Dispatch {
     _listeners: Vec<EventListener>,
 
     renderer: Rc<RefCell<renderer::Renderer>>,
 }
 
+pub struct Parameters {
+    pub window: web_sys::Window,
+
+    pub container: web_sys::HtmlElement,
+    pub canvas: web_sys::HtmlCanvasElement,
+    pub context: web_sys::CanvasRenderingContext2d,
+
+    pub border: web_sys::HtmlElement,
+    pub tile_lines: web_sys::HtmlElement,
+
+    pub color_add: web_sys::HtmlElement,
+    pub color_mul: web_sys::HtmlElement,
+}
+
 impl Dispatch {
-    pub fn new(calcada: calcada::Calcada, window: web_sys::Window, container: web_sys::HtmlElement, canvas: web_sys::HtmlCanvasElement, context: web_sys::CanvasRenderingContext2d) -> Rc<Self> {
+    pub fn new(calcada: calcada::Calcada, params: Parameters) -> Rc<Self> {
         // First construct the Dispatch object with uninitialized receivers (e.g., renderer).
-        let renderer = Rc::new(RefCell::new(renderer::Renderer::new(calcada, canvas.clone(), context)));
+        let renderer = Rc::new(RefCell::new(renderer::Renderer::new(calcada, params.canvas.clone(), params.context)));
 
         // Construct the various callbacks that we're interested in.
         let mut listeners = Vec::new();
-        let canvas_target = web_sys::EventTarget::from(canvas);
-        let window_target = web_sys::EventTarget::from(window);
+        let canvas_target = web_sys::EventTarget::from(params.canvas);
+        let window_target = web_sys::EventTarget::from(params.window);
 
         if !crate::SCREEN_SAVER_MODE {
             let renderer_clone = Rc::clone(&renderer);
+            // We want to prevent the default action which scrolls the page. We don't need that
+            // shit.
             listeners.push(EventListener::new_with_options(&canvas_target,
                                                            "wheel",
                                                            EventListenerOptions::enable_prevent_default(),
@@ -91,10 +114,10 @@ impl Dispatch {
                 // I wanted to use `?` but couldn't change the closure interface. The inner-closure's
                 // return is ignored.
                 let _ = || -> Result<(), ()> {
-                    let width = container.offset_width()
+                    let width = params.container.offset_width()
                         .try_into()
                         .or(Err(()))?;
-                    let height = container.offset_height()
+                    let height = params.container.offset_height()
                         .try_into()
                         .or(Err(()))?;
                     renderer_clone.try_borrow_mut()
@@ -102,6 +125,47 @@ impl Dispatch {
                         .update_dimensions(width, height);
                     Ok(())
                 }();
+            }));
+
+            let render_clone = Rc::clone(&renderer);
+            listeners.push(EventListener::new(&web_sys::EventTarget::from(params.border), "change", move |event: &web_sys::Event| {
+                if let Some(target) = event.target() {
+                    let element = target.dyn_ref::<web_sys::HtmlInputElement>().expect("oh god help me");
+                    let value = element.checked();
+                    render_clone.try_borrow_mut()
+                        .expect("Unable to borrow renderer for change event")
+                        .update_border(value);
+                }
+            }));
+            let render_clone = Rc::clone(&renderer);
+            listeners.push(EventListener::new(&web_sys::EventTarget::from(params.tile_lines), "change", move |event: &web_sys::Event| {
+                if let Some(target) = event.target() {
+                    let element = target.dyn_ref::<web_sys::HtmlInputElement>().expect("oh god help me");
+                    let value = element.checked();
+                    render_clone.try_borrow_mut()
+                        .expect("Unable to borrow renderer for change event")
+                        .update_tile_boundary(value);
+                }
+            }));
+            let render_clone = Rc::clone(&renderer);
+            listeners.push(EventListener::new(&web_sys::EventTarget::from(params.color_add), "change", move |event: &web_sys::Event| {
+                if let Some(target) = event.target() {
+                    let element = target.dyn_ref::<web_sys::HtmlInputElement>().expect("oh god help me");
+                    let value = element.value_as_number() as u32;
+                    render_clone.try_borrow_mut()
+                        .expect("Unable to borrow renderer for change event")
+                        .update_color_add(value);
+                }
+            }));
+            let render_clone = Rc::clone(&renderer);
+            listeners.push(EventListener::new(&web_sys::EventTarget::from(params.color_mul), "change", move |event: &web_sys::Event| {
+                if let Some(target) = event.target() {
+                    let element = target.dyn_ref::<web_sys::HtmlInputElement>().expect("oh god help me");
+                    let value = element.value_as_number() as u32;
+                    render_clone.try_borrow_mut()
+                        .expect("Unable to borrow renderer for change event")
+                        .update_color_mul(value);
+                }
             }));
         } else {
             let renderer_clone = Rc::clone(&renderer);

@@ -25,5 +25,6 @@ version = "0.3.55"
 features = [ "CanvasRenderingContext2d"
            , "WheelEvent"
            , "PointerEvent"
+           , "HtmlInputElement"
            , "HtmlCanvasElement"
            ]

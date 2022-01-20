@@ -18,6 +18,27 @@ macro_rules! log {
 // Cleanup
 use crate::Coord;
 
+
+struct UserParameters {
+    show_border_tiles: bool,
+    show_tile_boundaries: bool,
+
+    color_add: u32,
+    color_mul: u32,
+}
+
+impl UserParameters {
+    fn default() -> Self {
+        UserParameters {
+            show_border_tiles: false,
+            show_tile_boundaries: false,
+
+            color_add: 3,
+            color_mul: 1,
+        }
+    }
+}
+
 pub struct Renderer {
     model: calcada::Calcada,
 
@@ -27,6 +48,8 @@ pub struct Renderer {
 
     canvas: web_sys::HtmlCanvasElement,
     canvas_ctx: web_sys::CanvasRenderingContext2d,
+
+    options: UserParameters,
 }
 
 impl Renderer {
@@ -45,6 +68,8 @@ impl Renderer {
 
             canvas: canvas,
             canvas_ctx: context,
+
+            options: UserParameters::default(),
         }
     }
     pub fn initialize(&mut self, dispatch: Rc<dispatch::Dispatch>) {
@@ -102,7 +127,7 @@ impl Renderer {
 
             self.canvas_ctx.fill();
 
-            if crate::SHOW_LINES {
+            if self.options.show_tile_boundaries {
                 self.canvas_ctx.set_stroke_style(&JsValue::from_str("#000000"));
                 self.canvas_ctx.set_line_width(0.5);
                 self.canvas_ctx.stroke();
@@ -131,14 +156,19 @@ impl Renderer {
             .expect("Unable to compute view");
 
         // Second, display the tiles
-        for tile_context in self.model.tile_range(range_handle) {
+        let query_option = if self.options.show_border_tiles {
+            crate::calcada::TileRetrieval::IncludeBorder
+        } else {
+            crate::calcada::TileRetrieval::OnlyComputed
+        };
+        for tile_context in self.model.tile_range(range_handle, query_option) {
             let tile = tile_context.tile;
             let [n, e, s, w] = [tile.north, tile.east, tile.south, tile.west]
                 .map(|d| -> u32 {
                     let d = d as u32;
                     let mut s = std::collections::hash_map::DefaultHasher::new();
                     // interesting: (0, 1), (3, 1)
-                    d.wrapping_add(3).wrapping_mul(1).hash(&mut s);
+                    d.wrapping_add(self.options.color_add).wrapping_mul(self.options.color_mul).hash(&mut s);
                     let wide = s.finish();
                     let upper = ((wide >> 32) & 0xffffffff) as u32;
                     let lower = ((wide >> 0) & 0xffffffff) as u32;
@@ -168,6 +198,38 @@ impl Renderer {
         self.canvas.set_width(width);
         self.canvas.set_height(height);
         if self.view.update_dimensions(width, height) {
+            self.render();
+        }
+    }
+
+    pub fn update_border(&mut self, border: bool) {
+        let different = self.options.show_border_tiles != border;
+        self.options.show_border_tiles = border;
+        if different {
+            self.render();
+        }
+    }
+
+    pub fn update_tile_boundary(&mut self, boundary: bool) {
+        let different = self.options.show_tile_boundaries != boundary;
+        self.options.show_tile_boundaries = boundary;
+        if different {
+            self.render();
+        }
+    }
+
+    pub fn update_color_add(&mut self, value: u32) {
+        let different = self.options.color_add != value;
+        self.options.color_add = value;
+        if different {
+            self.render();
+        }
+    }
+
+    pub fn update_color_mul(&mut self, value: u32) {
+        let different = self.options.color_mul != value;
+        if different && value != 0 {
+            self.options.color_mul = value;
             self.render();
         }
     }

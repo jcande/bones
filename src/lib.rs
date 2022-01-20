@@ -73,6 +73,20 @@ pub fn js_main() -> Result<(), JsValue> {
         .ok_or(JsValue::from_str("unable to locate domino canvas \"domino\" in document"))?
         .dyn_into::<web_sys::HtmlCanvasElement>()?;
 
+    let border_option = document.get_element_by_id("border")
+        .ok_or(JsValue::from_str("unable to locate checkbox \"border\" in document"))?
+        .dyn_into::<web_sys::HtmlElement>()?;
+    let tile_lines_option = document.get_element_by_id("tile_lines")
+        .ok_or(JsValue::from_str("unable to locate checkbox \"tile_lines\" in document"))?
+        .dyn_into::<web_sys::HtmlElement>()?;
+
+    let color_add_option = document.get_element_by_id("palette_add")
+        .ok_or(JsValue::from_str("unable to locate number field \"palette_add\" in document"))?
+        .dyn_into::<web_sys::HtmlElement>()?;
+    let color_mul_option = document.get_element_by_id("palette_mul")
+        .ok_or(JsValue::from_str("unable to locate number field \"palette_mul\" in document"))?
+        .dyn_into::<web_sys::HtmlElement>()?;
+
     // this is a scary interaction from the html page. Anyway, we have a container div that takes
     // up the whole viewport. We now expand the canvas to the dimensions of this container
     // effectively making it the fullscreen. This is blowup when you resize so don't.
@@ -84,17 +98,30 @@ pub fn js_main() -> Result<(), JsValue> {
         .ok_or(JsValue::from_str("unable to retrieve 2d context from domino canvas"))?
         .dyn_into::<web_sys::CanvasRenderingContext2d>()?;
 
-    if let Err(e) = main(window, container, canvas, context) {
+    let params = dispatch::Parameters {
+        window: window,
+
+        container: container,
+        canvas: canvas,
+        context: context,
+
+        border: border_option,
+        tile_lines: tile_lines_option,
+        color_add: color_add_option,
+        color_mul: color_mul_option,
+    };
+
+    if let Err(e) = main(params) {
         panic!("{}", e);
     }
 
     Ok(())
 }
 
-fn main(window: web_sys::Window, container: web_sys::HtmlElement, canvas: web_sys::HtmlCanvasElement, context: web_sys::CanvasRenderingContext2d) -> anyhow::Result<()> {
+fn main(params: dispatch::Parameters) -> anyhow::Result<()> {
 
     let calcada = calcada::Calcada::new()?;
-    let _dispatch = dispatch::Dispatch::new(calcada, window, container, canvas, context);
+    let _dispatch = dispatch::Dispatch::new(calcada, params);
 
     Ok(())
 }
