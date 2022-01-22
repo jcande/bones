@@ -12,13 +12,6 @@ use crate::view_port;
 use crate::Coord;
 use crate::calcada;
 
-// A macro to provide `println!(..)`-style syntax for `console.log` logging.
-macro_rules! log {
-    ( $( $t:tt )* ) => {
-        web_sys::console::log_1(&format!( $( $t )* ).into());
-    }
-}
-
 pub struct Dispatch {
     _listeners: Vec<EventListener>,
 
@@ -217,11 +210,9 @@ impl Dispatch {
                     let height: u32 = params.container.client_height()
                         .try_into()
                         .or(Err(()))?;
-                    /*
                     renderer_clone.try_borrow_mut()
                         .expect("Unable to borrow renderer for resize event")
                         .update_dimensions(width, height);
-                    */
                     Ok(())
                 }();
             }));

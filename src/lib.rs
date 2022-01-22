@@ -126,10 +126,10 @@ pub fn js_main() -> Result<(), JsValue> {
 fn main(params: dispatch::Parameters) -> anyhow::Result<()> {
 
     let src = params.url.query_pairs()
-        .find(|(key, value)| key == "src")
+        .find(|(key, _)| key == "src")
         .map_or(
             Cow::from(String::from_utf8_lossy(std::include_bytes!("wasm.wm"))),
-            |(key, value)| value);
+            |(_, value)| value);
 
     let calcada = calcada::Calcada::new(&src)?;
     let _dispatch = dispatch::Dispatch::new(calcada, params);
