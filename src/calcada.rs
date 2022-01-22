@@ -95,7 +95,7 @@ pub struct Calcada {
     running: bool,
 }
 impl<'a> Calcada {
-    pub fn new() -> anyhow::Result<Self> {
+    pub fn new(source_code: &str) -> anyhow::Result<Self> {
         let program = if crate::RULE110_MODE {
             // This is rule110 taken from https://esolangs.org/wiki/Hao
             let n229 = tiling::Tile::new(0, 0, 0, 0);       // 0
@@ -124,9 +124,7 @@ impl<'a> Calcada {
 
             mosaic::Program::new(tile_set, border_tile, initial_state_vec)?
         } else {
-            let raw_bytes = std::include_bytes!("wasm.wm");
-            let wmach_source = String::from_utf8_lossy(raw_bytes);
-            wmach::Program::from_str(&wmach_source)?
+            wmach::Program::from_str(source_code)?
                 .compile()?
         };
 
@@ -174,7 +172,6 @@ impl<'a> Calcada {
         // calculate new tiles, if necessary
         if col_end >= 0 {
             while self.mosaic.len() <= (col_end as usize) && self.running {
-                log!("{}: Steppin' on the beach", self.mosaic.len());
                 if let Err(e) = self.program.step() {
                     log!("Unable to step: {:?}", e);
                     self.running = false;

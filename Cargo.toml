@@ -17,17 +17,19 @@ nom = "5"
 getopts = "0.2"
 wasm-bindgen = "0.2"
 gloo = "0.3"
+url = "2.2"
 # NOTE remove if we're not debugging
 console_error_panic_hook = "0.1.6"
 
 [dependencies.web-sys]
 version = "0.3.55"
 features = [ "CanvasRenderingContext2d"
-           , "WheelEvent"
+           , "HtmlInputElement"
+           , "HtmlCanvasElement"
+           , "Location"
            , "PointerEvent"
            , "TouchEvent"
            , "TouchList"
            , "Touch"
-           , "HtmlInputElement"
-           , "HtmlCanvasElement"
+           , "WheelEvent"
            ]

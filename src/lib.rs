@@ -1,9 +1,10 @@
-// TODO think of a more uniform/consistent/obvious way to deal with zooming. We also want to avoid
-// small floats as that is inaccurate
+use url;
+
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use std::ops::AddAssign;
 use std::ops::SubAssign;
+use std::borrow::Cow;
 
 // This is recommended for debug builds.
 extern crate console_error_panic_hook;
@@ -22,7 +23,7 @@ mod wmach;
 
 
 const SCREEN_SAVER_MODE: bool = false;
-const RULE110_MODE: bool = true;
+const RULE110_MODE: bool = false;
 
 
 #[derive(PartialEq, Clone, Copy, Debug)]
@@ -61,6 +62,10 @@ pub fn js_main() -> Result<(), JsValue> {
 
     let window = web_sys::window()
         .ok_or(JsValue::from_str("no global window exists"))?;
+    let href = window.location().href()?;
+    let url = url::Url::parse(&href)
+        .or(Err(JsValue::from_str("unable to parse url")))?;
+
     let document = window
         .document()
         .ok_or(JsValue::from_str("should have a document on window"))?;
@@ -99,6 +104,7 @@ pub fn js_main() -> Result<(), JsValue> {
 
     let params = dispatch::Parameters {
         window: window,
+        url: url,
 
         container: container,
         canvas: canvas,
@@ -119,7 +125,13 @@ pub fn js_main() -> Result<(), JsValue> {
 
 fn main(params: dispatch::Parameters) -> anyhow::Result<()> {
 
-    let calcada = calcada::Calcada::new()?;
+    let src = params.url.query_pairs()
+        .find(|(key, value)| key == "src")
+        .map_or(
+            Cow::from(String::from_utf8_lossy(std::include_bytes!("wasm.wm"))),
+            |(key, value)| value);
+
+    let calcada = calcada::Calcada::new(&src)?;
     let _dispatch = dispatch::Dispatch::new(calcada, params);
 
     Ok(())

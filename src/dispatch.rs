@@ -4,6 +4,7 @@ use wasm_bindgen::JsCast;
 
 use gloo::events::{EventListener, EventListenerOptions};
 use gloo::timers::callback::Interval;
+use url;
 
 // is this really how we reference it?
 use crate::renderer;
@@ -26,6 +27,7 @@ pub struct Dispatch {
 
 pub struct Parameters {
     pub window: web_sys::Window,
+    pub url: url::Url,
 
     pub container: web_sys::HtmlElement,
     pub canvas: web_sys::HtmlCanvasElement,
