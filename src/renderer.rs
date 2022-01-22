@@ -29,12 +29,18 @@ struct UserParameters {
 
 impl UserParameters {
     fn default() -> Self {
+        let (add, mul) = if crate::RULE110_MODE {
+            (28, 22)
+        } else {
+            // This is a good scheme for tiles from compiled program
+            (3, 1)
+        };
         UserParameters {
             show_border_tiles: false,
             show_tile_boundaries: false,
 
-            color_add: 3,
-            color_mul: 1,
+            color_add: add,
+            color_mul: mul,
         }
     }
 }
@@ -129,7 +135,7 @@ impl Renderer {
 
             if self.options.show_tile_boundaries {
                 self.canvas_ctx.set_stroke_style(&JsValue::from_str("#000000"));
-                self.canvas_ctx.set_line_width(0.5);
+                self.canvas_ctx.set_line_width(0.5 * self.view.zoom);
                 self.canvas_ctx.stroke();
             }
         }

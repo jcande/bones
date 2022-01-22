@@ -22,6 +22,7 @@ mod wmach;
 
 
 const SCREEN_SAVER_MODE: bool = false;
+const RULE110_MODE: bool = true;
 
 
 #[derive(PartialEq, Clone, Copy, Debug)]

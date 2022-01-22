@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use crate::tiling;
 use crate::mosaic;
 use crate::wmach;
@@ -94,10 +96,39 @@ pub struct Calcada {
 }
 impl<'a> Calcada {
     pub fn new() -> anyhow::Result<Self> {
-        let raw_bytes = std::include_bytes!("wasm.wm");
-        let wmach_source = String::from_utf8_lossy(raw_bytes);
-        let program = wmach::Program::from_str(&wmach_source)?
-            .compile()?;
+        let program = if crate::RULE110_MODE {
+            // This is rule110 taken from https://esolangs.org/wiki/Hao
+            let n229 = tiling::Tile::new(0, 0, 0, 0);       // 0
+            let n44 = tiling::Tile::new(1, 1, 0, 1);        // 1
+            let n3158 = tiling::Tile::new(0, 2, 1, 0);      // 2
+            let n54 = tiling::Tile::new(1, 3, 1, 1);        // 3
+            let n1538 = tiling::Tile::new(0, 0, 0, 3);      // 4
+            let n1539 = tiling::Tile::new(1, 1, 1, 2);      // 5
+            let n14876 = tiling::Tile::new(0, 2, 1, 3);     // 6
+            let n18144 = tiling::Tile::new(1, 3, 1, 2);     // 7
+            let x = 4;
+            let y = 5;
+            let initial_set_bit = tiling::Tile::new(y, x, 1, x);
+            let initial_clear_bit = tiling::Tile::new(y, x, 0, x);
+            let cap = tiling::Tile::new(0, x, y, x);
+            let west_cap_a = tiling::Tile::new(y, x, 0, 0);
+            let west_cap_b = tiling::Tile::new(y, x, 1, 0);
+            let east_cap_a = tiling::Tile::new(y, 0, 0, x);
+            let east_cap_b = tiling::Tile::new(y, 0, 1, x);
+            let border_tile = n229;
+            let tiles = [n229, n44, n3158, n54, n1538, n1539, n14876, n18144, initial_set_bit, initial_clear_bit, cap, west_cap_a, west_cap_b, east_cap_a, east_cap_b];
+            let tile_set = HashSet::from(tiles.map(tiling::Domino::pure));
+            let initial_state_vec = vec![tiles[2], tiles[5], tiles[3], tiles[4]];
+            // Yeah we can make it "legit" but it doesn't look as nice so WHO CARES
+            //let initial_state_vec = vec![west_cap_a, initial_set_bit, initial_set_bit, initial_clear_bit, east_cap_a];
+
+            mosaic::Program::new(tile_set, border_tile, initial_state_vec)?
+        } else {
+            let raw_bytes = std::include_bytes!("wasm.wm");
+            let wmach_source = String::from_utf8_lossy(raw_bytes);
+            wmach::Program::from_str(&wmach_source)?
+                .compile()?
+        };
 
         let mosaic = vec![TileRow {
             offset: 0,
@@ -143,6 +174,7 @@ impl<'a> Calcada {
         // calculate new tiles, if necessary
         if col_end >= 0 {
             while self.mosaic.len() <= (col_end as usize) && self.running {
+                log!("{}: Steppin' on the beach", self.mosaic.len());
                 if let Err(e) = self.program.step() {
                     log!("Unable to step: {:?}", e);
                     self.running = false;
@@ -171,18 +203,23 @@ impl<'a> Calcada {
                 } else {
                     // This is case 2 and 3, but we're only concerning ourselves with the western
                     // expansion case.
-                    let west_cur = state[1]; // not 0 as that is the unallocated marker, but the next one that is real
-                    let west_prev = prev.tiles[1];
 
-                    if west_prev.south != west_cur.north {
-                        // Think about the numberline. The west is leftwards which is negative. And
-                        // based on how we've architected the tile machine, it can only grow one
-                        // tile at a time so we know it can't be more than 1 western tile that
-                        // expanded.
-                        -1
-                    } else {
-                        0
-                    }
+                    // Find the western border of the previous state
+                    let west_prev = prev.tiles.iter()
+                        .find(|tile| **tile != self.program.border())
+                        .expect("Somehow the machine state consists entirely of implicit border tiles. This likely shouldn't happen.");
+
+                    // Now see which tile of the current state matches it. This grants us our
+                    // offset
+                    let offset = state.iter().enumerate()
+                        .find(|(_, tile)| west_prev.south == tile.north)
+                        .map_or(0, |(i, _)| i) as i32;
+                    // Think about the numberline. The west is leftwards which is negative. Since
+                    // we had to travel `offset` tiles east-ward relative to the current state,
+                    // that means that the current border is the same `offset` westward relative to
+                    // the previous state. Since the previous state came first it gets dibs on the
+                    // coordinates.
+                    -offset
                 };
 
                 self.mosaic.push(TileRow {

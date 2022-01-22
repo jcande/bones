@@ -111,6 +111,9 @@ impl Dispatch {
                     .update_pointer(view_port::PointerEvent::Move(Coord::new(pointer.client_x(), pointer.client_y())));
             }));
 
+            // XXX TODO implement pinch-to-zoom. Just need to keep track of two points instead of
+            // the current one, and then convert the delta on each move into an invocation to
+            // update_scale()
             let renderer_clone = Rc::clone(&renderer);
             listeners.push(EventListener::new_with_options(&canvas_target,
                                                            "touchstart",
