@@ -4,7 +4,7 @@ use std::hash::Hash;
 use std::hash::Hasher;
 
 use crate::view_port;
-use crate::calcada;
+use crate::mosaic;
 use crate::tiling;
 use crate::dispatch;
 
@@ -28,8 +28,15 @@ impl UserParameters {
             // This is a good scheme for tiles from compiled program
             (3, 1)
         };
+
+        let border_disposition = if crate::RULE110_MODE {
+            true
+        } else {
+            false
+        };
+
         UserParameters {
-            show_border_tiles: false,
+            show_border_tiles: border_disposition,
             show_tile_boundaries: false,
 
             color_add: add,
@@ -39,7 +46,7 @@ impl UserParameters {
 }
 
 pub struct Renderer {
-    model: calcada::Calcada,
+    model: mosaic::Mosaic,
 
     view: view_port::ViewPort,
 
@@ -56,10 +63,10 @@ impl Renderer {
     pub const TILE_HEIGHT: f64 = 100.0;
 
     // XXX should we really pass this in like this?
-    pub fn new(calcada: calcada::Calcada, canvas: web_sys::HtmlCanvasElement, context: web_sys::CanvasRenderingContext2d) -> Self {
+    pub fn new(mosaic: mosaic::Mosaic, canvas: web_sys::HtmlCanvasElement, context: web_sys::CanvasRenderingContext2d) -> Self {
         context.set_image_smoothing_enabled(false);
         Self {
-            model: calcada,
+            model: mosaic,
 
             view: view_port::ViewPort::new(canvas.width(), canvas.height()),
 
@@ -156,9 +163,9 @@ impl Renderer {
 
         // Second, display the tiles
         let query_option = if self.options.show_border_tiles {
-            crate::calcada::TileRetrieval::IncludeBorder
+            crate::mosaic::TileRetrieval::IncludeBorder
         } else {
-            crate::calcada::TileRetrieval::OnlyComputed
+            crate::mosaic::TileRetrieval::OnlyComputed
         };
         for tile_context in self.model.tile_range(range_handle, query_option) {
             let tile = tile_context.tile;

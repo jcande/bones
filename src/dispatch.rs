@@ -10,7 +10,7 @@ use url;
 use crate::renderer;
 use crate::view_port;
 use crate::Coord;
-use crate::calcada;
+use crate::mosaic;
 
 pub struct Dispatch {
     _listeners: Vec<EventListener>,
@@ -34,9 +34,9 @@ pub struct Parameters {
 }
 
 impl Dispatch {
-    pub fn new(calcada: calcada::Calcada, params: Parameters) -> Rc<Self> {
+    pub fn new(mosaic: mosaic::Mosaic, params: Parameters) -> Rc<Self> {
         // First construct the Dispatch object with uninitialized receivers (e.g., renderer).
-        let renderer = Rc::new(RefCell::new(renderer::Renderer::new(calcada, params.canvas.clone(), params.context)));
+        let renderer = Rc::new(RefCell::new(renderer::Renderer::new(mosaic, params.canvas.clone(), params.context)));
 
         // Construct the various callbacks that we're interested in.
         let mut listeners = Vec::new();

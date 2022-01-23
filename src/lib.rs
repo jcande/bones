@@ -12,12 +12,12 @@ extern crate console_error_panic_hook;
 mod view_port;
 mod renderer;
 mod dispatch;
-mod calcada;
+mod mosaic;
 
 mod compiler;
 mod constraint;
 mod io_buffer;
-mod mosaic;
+mod tessera;
 mod tiling;
 mod wmach;
 
@@ -131,8 +131,8 @@ fn main(params: dispatch::Parameters) -> anyhow::Result<()> {
             Cow::from(String::from_utf8_lossy(std::include_bytes!("wasm.wm"))),
             |(_, value)| value);
 
-    let calcada = calcada::Calcada::new(&src)?;
-    let _dispatch = dispatch::Dispatch::new(calcada, params);
+    let mosaic = mosaic::Mosaic::new(&src)?;
+    let _dispatch = dispatch::Dispatch::new(mosaic, params);
 
     Ok(())
 }
