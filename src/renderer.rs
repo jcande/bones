@@ -2,6 +2,9 @@ use std::rc::Rc;
 use wasm_bindgen::JsValue;
 use std::hash::Hash;
 use std::hash::Hasher;
+use std::collections::HashMap;
+
+use url::Url;
 
 use crate::view_port;
 use crate::mosaic;
@@ -62,9 +65,24 @@ impl Renderer {
     pub const TILE_WIDTH: f64 = 100.0;
     pub const TILE_HEIGHT: f64 = 100.0;
 
-    // XXX should we really pass this in like this?
-    pub fn new(mosaic: mosaic::Mosaic, canvas: web_sys::HtmlCanvasElement, context: web_sys::CanvasRenderingContext2d) -> Self {
+    pub fn new(url: &url::Url, mosaic: mosaic::Mosaic, canvas: web_sys::HtmlCanvasElement, context: web_sys::CanvasRenderingContext2d) -> Self {
         context.set_image_smoothing_enabled(false);
+
+        // Forgive me for I have sinned
+        let hash_query: HashMap<_, _> = url.query_pairs().into_owned().collect();
+        let mut options = UserParameters::default();
+        for (k, v) in &hash_query {
+            if k == "palette_add" {
+                if let Ok(value) = v.parse::<u32>() {
+                    options.color_add = value;
+                }
+            } else if k == "palette_mul" {
+                if let Ok(value) = v.parse::<u32>() {
+                    options.color_mul = value;
+                }
+            }
+        }
+
         Self {
             model: mosaic,
 
@@ -75,7 +93,7 @@ impl Renderer {
             canvas: canvas,
             canvas_ctx: context,
 
-            options: UserParameters::default(),
+            options: options,
         }
     }
     pub fn initialize(&mut self, dispatch: Rc<dispatch::Dispatch>) {

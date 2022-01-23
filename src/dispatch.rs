@@ -1,5 +1,6 @@
 use std::rc::Rc;
 use std::cell::RefCell;
+use std::collections::HashMap;
 use wasm_bindgen::JsCast;
 
 use gloo::events::{EventListener, EventListenerOptions};
@@ -21,6 +22,7 @@ pub struct Dispatch {
 pub struct Parameters {
     pub window: web_sys::Window,
     pub url: url::Url,
+    pub state: web_sys::Attr,
 
     pub container: web_sys::HtmlElement,
     pub canvas: web_sys::HtmlCanvasElement,
@@ -33,10 +35,24 @@ pub struct Parameters {
     pub color_mul: web_sys::HtmlElement,
 }
 
+// This is hacky as hell... Basically the URL object doesn't de-dupe if you
+// append the same key multiple times. This is a workaround.
+fn update_query(url: &mut url::Url, key: String, value: String) {
+    let mut hash_query: HashMap<_, _> = url.query_pairs().into_owned().collect();
+    hash_query.insert(key, value);
+    url.query_pairs_mut().clear();
+    for (k, v) in &hash_query {
+        url.query_pairs_mut().append_pair(k, v);
+    }
+}
+
 impl Dispatch {
     pub fn new(mosaic: mosaic::Mosaic, params: Parameters) -> Rc<Self> {
+        let url = Rc::new(RefCell::new(params.url.clone()));
+        let state = Rc::new(RefCell::new(params.state.clone()));
+
         // First construct the Dispatch object with uninitialized receivers (e.g., renderer).
-        let renderer = Rc::new(RefCell::new(renderer::Renderer::new(mosaic, params.canvas.clone(), params.context)));
+        let renderer = Rc::new(RefCell::new(renderer::Renderer::new(&params.url, mosaic, params.canvas.clone(), params.context)));
 
         // Construct the various callbacks that we're interested in.
         let mut listeners = Vec::new();
@@ -238,6 +254,8 @@ impl Dispatch {
                 }
             }));
             let render_clone = Rc::clone(&renderer);
+            let url_clone = Rc::clone(&url);
+            let state_clone = Rc::clone(&state);
             listeners.push(EventListener::new(&web_sys::EventTarget::from(params.color_add), "change", move |event: &web_sys::Event| {
                 if let Some(target) = event.target() {
                     let element = target.dyn_ref::<web_sys::HtmlInputElement>().expect("oh god help me");
@@ -245,9 +263,16 @@ impl Dispatch {
                     render_clone.try_borrow_mut()
                         .expect("Unable to borrow renderer for change event")
                         .update_color_add(value);
+
+                    let mut url = url_clone.try_borrow_mut().unwrap();
+                    let state = state_clone.try_borrow_mut().unwrap();
+                    update_query(&mut url, "palette_add".to_owned(), value.to_string());
+                    state.set_value(url.as_str());
                 }
             }));
             let render_clone = Rc::clone(&renderer);
+            let url_clone = Rc::clone(&url);
+            let state_clone = Rc::clone(&state);
             listeners.push(EventListener::new(&web_sys::EventTarget::from(params.color_mul), "change", move |event: &web_sys::Event| {
                 if let Some(target) = event.target() {
                     let element = target.dyn_ref::<web_sys::HtmlInputElement>().expect("oh god help me");
@@ -255,6 +280,11 @@ impl Dispatch {
                     render_clone.try_borrow_mut()
                         .expect("Unable to borrow renderer for change event")
                         .update_color_mul(value);
+
+                    let mut url = url_clone.try_borrow_mut().unwrap();
+                    let state = state_clone.try_borrow_mut().unwrap();
+                    update_query(&mut url, "palette_mul".to_owned(), value.to_string());
+                    state.set_value(url.as_str());
                 }
             }));
         } else {

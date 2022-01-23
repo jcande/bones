@@ -97,6 +97,12 @@ pub fn js_main() -> Result<(), JsValue> {
     canvas.set_width(container.offset_width().try_into().expect("someone hates you"));
     canvas.set_height(container.offset_height().try_into().expect("someone hates you"));
 
+    let state_element = document.get_element_by_id("state_link")
+        .ok_or(JsValue::from_str("unable to locate shareable \"state_link\" in document"))?
+        .dyn_into::<web_sys::HtmlElement>()?;
+    let attr = state_element.attributes();
+    let state = attr.get_named_item("href").expect("The state_link element needs an href");
+
     let context = canvas
         .get_context("2d")?
         .ok_or(JsValue::from_str("unable to retrieve 2d context from domino canvas"))?
@@ -105,6 +111,7 @@ pub fn js_main() -> Result<(), JsValue> {
     let params = dispatch::Parameters {
         window: window,
         url: url,
+        state: state,
 
         container: container,
         canvas: canvas,

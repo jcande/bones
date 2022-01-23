@@ -14,6 +14,34 @@
           width: 97vw;
       }
     </style>
+    <script type="text/javascript">
+        // This sets the state based on the URL. Yeah, there is like 40 ways we
+        // need to plumb this information along. I'm not a web guy and was
+        // losing steam at this point. Forgive me, I realize it is bad.
+        function decorate_for_guests() {
+            const url = new URL(document.location.href);
+            const params = new URLSearchParams(url.search);
+            const defaults = {
+                "palette_add": "3",
+                "palette_mul": "1",
+                // (8, 8) looks cool
+            };
+            const elements = ["palette_add", "palette_mul"];
+            elements.forEach(function(id) {
+                var element = document.getElementById(id);
+                if (params.get(id) !== null) {
+                    element.value = params.get(id);
+                } else if (defaults[id] !== undefined) {
+                    element.value = defaults[id];
+                }
+            });
+        }
+
+        var kickstart;
+        (kickstart = function() {
+            window.onload = decorate_for_guests;
+        })();
+    </script>
   </head>
   <body>
     <div id="wrapper">
@@ -34,10 +62,13 @@
       <div>
 -->
         |
-        <label for="palette_add">Color Palette Magic #1</label>
-        <input type="number" id="palette_add" name="palette_add" placeholder="3">
-        <label for="palette_mul">Color Palette Magic #2</label>
-        <input type="number" id="palette_mul" name="palette_mul" placeholder="1">
+        <label for="palette_add">Color #1</label>
+        <input type="number" id="palette_add" name="palette_add" style="width: 7ch" />
+        <label for="palette_mul">Color #2</label>
+        <input type="number" id="palette_mul" name="palette_mul" style="width: 7ch" />
+
+        |
+        <a id="state_link" href="">Share</a>
       </div>
     </div>
     <link data-trunk rel="rust" href="Cargo.toml" data-wasm-opt="z" data-lib="canvas_experiment" />
